@@ -16,68 +16,68 @@ module JIA32
 	end
 
 	# Read access functions
-	function phys_read_u64(memory:: PhysicalMemory, addr:: Uint64)
+	@inline function phys_read_u64(memory:: PhysicalMemory, addr:: Uint64)
 		return unsafe_load(convert(Ptr{Uint64}, memory.baseptr + addr), 1);
 	end
 
-	function phys_read_s64(memory:: PhysicalMemory, addr:: Uint64)
+	@inline function phys_read_s64(memory:: PhysicalMemory, addr:: Uint64)
 		return unsafe_load(convert(Ptr{Int64}, memory.baseptr + addr), 1);
 	end
 
-	function phys_read_u32(memory:: PhysicalMemory, addr:: Uint64)
+	@inline function phys_read_u32(memory:: PhysicalMemory, addr:: Uint64)
 		return unsafe_load(convert(Ptr{Uint32}, memory.baseptr + addr), 1);
 	end
 
-	function phys_read_s32(memory:: PhysicalMemory, addr:: Uint64)
+	@inline function phys_read_s32(memory:: PhysicalMemory, addr:: Uint64)
 		return unsafe_load(convert(Ptr{Int32}, memory.baseptr + addr), 1);
 	end
 
-	function phys_read_u16(memory:: PhysicalMemory, addr:: Uint64)
+	@inline function phys_read_u16(memory:: PhysicalMemory, addr:: Uint64)
 		return unsafe_load(convert(Ptr{Uint16}, memory.baseptr + addr), 1);
 	end
 
-	function phys_read_s16(memory:: PhysicalMemory, addr:: Uint64)
+	@inline function phys_read_s16(memory:: PhysicalMemory, addr:: Uint64)
 		return unsafe_load(convert(Ptr{Int16}, memory.baseptr + addr), 1);
 	end
 
-	function phys_read_u8(memory:: PhysicalMemory, addr:: Uint64)
+	@inline function phys_read_u8(memory:: PhysicalMemory, addr:: Uint64)
 		return unsafe_load(convert(Ptr{Uint8}, memory.baseptr + addr), 1);
 	end
 
-	function phys_read_s8(memory:: PhysicalMemory, addr:: Uint64)
+	@inline function phys_read_s8(memory:: PhysicalMemory, addr:: Uint64)
 		return unsafe_load(convert(Ptr{Int8}, memory.baseptr + addr), 1);
 	end
 
 	# Write access functions
-	function phys_write_u64(memory:: PhysicalMemory, addr:: Uint64, data:: Uint64)
+	@inline function phys_write_u64(memory:: PhysicalMemory, addr:: Uint64, data:: Uint64)
 		return unsafe_store!(convert(Ptr{Uint64}, memory.baseptr + addr), data, 1);
 	end
 
-	function phys_write_s64(memory:: PhysicalMemory, addr:: Uint64, data:: Int64)
+	@inline function phys_write_s64(memory:: PhysicalMemory, addr:: Uint64, data:: Int64)
 		return unsafe_store!(convert(Ptr{Int64}, memory.baseptr + addr), data, 1);
 	end
 
-	function phys_write_u32(memory:: PhysicalMemory, addr:: Uint64, data:: Uint32)
+	@inline function phys_write_u32(memory:: PhysicalMemory, addr:: Uint64, data:: Uint32)
 		return unsafe_store!(convert(Ptr{Uint32}, memory.baseptr + addr), data, 1);
 	end
 
-	function phys_write_s32(memory:: PhysicalMemory, addr:: Uint64, data:: Int32)
+	@inline function phys_write_s32(memory:: PhysicalMemory, addr:: Uint64, data:: Int32)
 		return unsafe_store!(convert(Ptr{Int32}, memory.baseptr + addr), data, 1);
 	end
 
-	function phys_write_u16(memory:: PhysicalMemory, addr:: Uint64, data:: Uint16)
+	@inline function phys_write_u16(memory:: PhysicalMemory, addr:: Uint64, data:: Uint16)
 		return unsafe_store!(convert(Ptr{Uint16}, memory.baseptr + addr), data, 1);
 	end
 
-	function phys_write_s16(memory:: PhysicalMemory, addr:: Uint64, data:: Int16)
+	@inline function phys_write_s16(memory:: PhysicalMemory, addr:: Uint64, data:: Int16)
 		return unsafe_store!(convert(Ptr{Int16}, memory.baseptr + addr), data, 1);
 	end
 
-	function phys_write_u8(memory:: PhysicalMemory, addr:: Uint64, data:: Uint8)
+	@inline function phys_write_u8(memory:: PhysicalMemory, addr:: Uint64, data:: Uint8)
 		return unsafe_store!(convert(Ptr{Uint8}, memory.baseptr + addr), data, 1);
 	end
 
-	function phys_write_s8(memory:: PhysicalMemory, addr:: Uint64, data:: Int8)
+	@inline function phys_write_s8(memory:: PhysicalMemory, addr:: Uint64, data:: Int8)
 		return unsafe_store!(convert(Ptr{Int8}, memory.baseptr + addr), data, 1);
 	end
 
@@ -91,12 +91,12 @@ module JIA32
 	# Unit testing
 	if (length(ARGS) > 0) && ARGS[1] == "test"
 		mem = JIA32.PhysicalMemory(uint64(4096*1024))
-
 		println("Testing $(@__FILE__())...")
 
 		# Test basic r/w
-		print("Testing basic r/w functions ... ")
+		println("Testing basic r/w functions ... ")
 		# read_u8 == write_u8
+		println("read_u8 == write_u8")
 		for i = 0 : mem.size - 1
 			JIA32.phys_write_u8(mem, uint64(i), uint8(0xab))
 		end
@@ -107,6 +107,7 @@ module JIA32
 		end
 
 		# read_s8 == write_s8
+		println("read_s8 == write_s8")
 		for i = 0 : mem.size - 1
 			JIA32.phys_write_s8(mem, uint64(i), int8(-1))
 		end
@@ -117,6 +118,7 @@ module JIA32
 		end
 
 		for offset = 0 : 1
+			println("read_u16 == write_u16, offset = $offset")
 			# read_u16 == write_u16
 			for i = range(offset, 2, int((mem.size >> 1)))
 				JIA32.phys_write_u16(mem, uint64(i), uint16(0xdead))
@@ -127,6 +129,7 @@ module JIA32
 				end
 			end
 
+			println("read_s16 == write_s16, offset = $offset")
 			# read_s16 == write_s16
 			for i = range(offset, 2, int((mem.size >> 1)))
 				JIA32.phys_write_s16(mem, uint64(i), int16(-16384))
@@ -139,44 +142,48 @@ module JIA32
 		end
 
 		for offset = 0 : 3
+			println("read_u32 == write_u32, offset = $offset")
 			# read_u32 == write_u32
-			for i = range(offset, 4, int((mem.size >> 2)))
+			for i = range(offset, 4, ((mem.size >> 2)))
 				JIA32.phys_write_u32(mem, uint64(i), uint32(0xdeadbeef))
 			end
-			for i = range(offset, 4, int((mem.size >> 2)))
+			for i = range(offset, 4, ((mem.size >> 2)))
 				if JIA32.phys_read_u32(mem, uint64(i)) != uint32(0xdeadbeef)
 					error("phys_read_u32 != phys_write_u32 on offset $(offset)")
 				end
 			end
 
+			println("read_s32 == write_s32, offset = $offset")
 			# read_s32 == write_s32
 			for i = range(offset, 4, int((mem.size >> 2)))
-				JIA32.phys_write_s32(mem, uint64(i), int32(-0x12345678))
+				JIA32.phys_write_s32(mem, uint64(i), int32(0-0x12345678))
 			end
 			for i = range(offset, 4, int((mem.size >> 2)))
-				if JIA32.phys_read_s32(mem, uint64(i)) != int32(-0x12345678)
+				if JIA32.phys_read_s32(mem, uint64(i)) != int32(0-0x12345678)
 					error("phys_read_s32 != phys_write_s32 on offset $(offset)")
 				end
 			end
 		end
 
 		for offset = 0 : 7 
+			println("read_u64 == write_u64, offset = $offset")
 			# read_u64 == write_u64
-			for i = range(offset, 8, int((mem.size >> 3)))
+			for i = range(offset, 8, ((mem.size >> 3)))
 				JIA32.phys_write_u64(mem, uint64(i), uint64(0x87654321deadbeef))
 			end
-			for i = range(offset, 8, int((mem.size >> 3)))
+			for i = range(offset, 8, ((mem.size >> 3)))
 				if JIA32.phys_read_u64(mem, uint64(i)) != uint64(0x87654321deadbeef)
 					error("phys_read_u64 != phys_write_u64 on offset $(offset)")
 				end
 			end
 
+			println("read_s64 == write_s64, offset = $offset")
 			# read_s64 == write_s64
-			for i = range(offset, 8, int((mem.size >> 3)))
-				JIA32.phys_write_s64(mem, uint64(i), int64(-0x12345678deadbeef))
+			for i = range(offset, 8, ((mem.size >> 3)))
+				JIA32.phys_write_s64(mem, uint64(i), int64(-1311768468603649775))
 			end
-			for i = range(offset, 8, int((mem.size >> 3)))
-				if JIA32.phys_read_s64(mem, uint64(i)) != int64(-0x12345678deadbeef)
+			for i = range(offset, 8, ((mem.size >> 3)))
+				if JIA32.phys_read_s64(mem, uint64(i)) != int64(-1311768468603649775)
 					error("phys_read_s64 != phys_write_s64 on offset $(offset)")
 				end
 			end
