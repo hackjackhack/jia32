@@ -156,10 +156,10 @@ module JIA32
 			println("read_s32 == write_s32, offset = $offset")
 			# read_s32 == write_s32
 			for i = range(offset, 4, int((mem.size >> 2)))
-				JIA32.phys_write_s32(mem, uint64(i), int32(0-0x12345678))
+				JIA32.phys_write_s32(mem, uint64(i), -int32(0x12345678))
 			end
 			for i = range(offset, 4, int((mem.size >> 2)))
-				if JIA32.phys_read_s32(mem, uint64(i)) != int32(0-0x12345678)
+				if JIA32.phys_read_s32(mem, uint64(i)) != -int32(0x12345678)
 					error("phys_read_s32 != phys_write_s32 on offset $(offset)")
 				end
 			end
@@ -180,10 +180,10 @@ module JIA32
 			println("read_s64 == write_s64, offset = $offset")
 			# read_s64 == write_s64
 			for i = range(offset, 8, ((mem.size >> 3)))
-				JIA32.phys_write_s64(mem, uint64(i), int64(-1311768468603649775))
+				JIA32.phys_write_s64(mem, uint64(i), -int64(0x12345678deadbeef))
 			end
 			for i = range(offset, 8, ((mem.size >> 3)))
-				if JIA32.phys_read_s64(mem, uint64(i)) != int64(-1311768468603649775)
+				if JIA32.phys_read_s64(mem, uint64(i)) != -int64(0x12345678deadbeef)
 					error("phys_read_s64 != phys_write_s64 on offset $(offset)")
 				end
 			end
