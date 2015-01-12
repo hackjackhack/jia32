@@ -37,17 +37,28 @@ module JIA32
 
 	const RIP_type = Uint64; const RIP_seq = 16;
 	const EIP_type = Uint32; const EIP_seq = 16;
+	const IP_type = Uint16; const IP_seq = 16;
+
+	const CS = 0
+	const DS = 1
+	const ES = 2
+	const SS = 3
+	const FS = 4
+	const GS = 5
 
 	type CPU
 		genl_regs_buffer:: Array{Uint8}
 		genl_regs:: Ptr{Uint8}
-		cs:: Uint16; cs_base:: Uint64
-		ds:: Uint16; ds_base:: Uint64
-		es:: Uint16; es_base:: Uint64
-		ss:: Uint16; ss_base:: Uint64
-		fs:: Uint16; fs_base:: Uint64
-		gs:: Uint16; gs_base:: Uint64
+		seg_regs_buffer:: Array{Uint16}
+		seg_regs:: Ptr{Uint16}
+		seg_shadow_regs_buffer:: Array{Uint64}
+		seg_shadow_regs:: Ptr{Uint64}
 		rflag:: Uint64
+
+		# Internal use
+		docoding_rip:: Uint64
+		decoding_eip:: Uint32
+		decoding_ip:: Uint16
 
 		type MMU
 		end
@@ -60,9 +71,33 @@ module JIA32
 			cpu.genl_regs_buffer = Array(Uint8, 16 * 8 + 8)
 			cpu.genl_regs = cpu.genl_regs_buffer
 
+			# 6 16-bit segment register and their hidden parts
+			cpu.seg_regs_buffer = Array(Uint16, 6)
+			cpu.seg_regs = cpu.seg_regs_buffer
+			cpu.seg_shadow_regs_buffer = Array(Uint64, 6)
+			cpu.seg_shadow_regs = cpu.seg_shadow_regs_buffer
+
 			return cpu
 		end
 	end
+#=
+	macro def_genl_regs_get(rname, seq, width)
+		return esc(quote
+			@inline function $(symbol("get_$rname"))(cpu:: CPU)
+				return unsafe_load(convert(Ptr{$width}, cpu.genl_regs + $seq * 8), 1);
+			end
+		end)
+	end
+
+	@def_genl_regs_get(rax, 0, Uint64)
+	@def_genl_regs_get(eax, 0, Uint32)
+	@def_genl_regs_get(ax, 0, Uint16)
+	@def_genl_regs_get(al, 0, Uint8)
+	@def_genl_regs_get(rcx, 1, Uint64)
+	@def_genl_regs_get(ecx, 1, Uint32)
+	@def_genl_regs_get(cx, 1, Uint16)
+	@def_genl_regs_get(cl, 1, Uint8)
+=#
 
 	# General register access functions
 	macro reg_w!(cpu, width, seq, data)
@@ -130,25 +165,63 @@ module JIA32
 		return :(@eip!($cpu, @eip($cpu) + $addend))
 	end
 
-
-#=
-	macro def_genl_regs_get(rname, seq, width)
-		return esc(quote
-			@inline function $(symbol("get_$rname"))(cpu:: CPU)
-				return unsafe_load(convert(Ptr{$width}, cpu.genl_regs + $seq * 8), 1);
-			end
-		end)
+	macro ip(cpu)
+		return :(@reg_r_named($cpu, IP))
 	end
 
-	@def_genl_regs_get(rax, 0, Uint64)
-	@def_genl_regs_get(eax, 0, Uint32)
-	@def_genl_regs_get(ax, 0, Uint16)
-	@def_genl_regs_get(al, 0, Uint8)
-	@def_genl_regs_get(rcx, 1, Uint64)
-	@def_genl_regs_get(ecx, 1, Uint32)
-	@def_genl_regs_get(cx, 1, Uint16)
-	@def_genl_regs_get(cl, 1, Uint8)
-=#
+	macro ip!(cpu, data)
+		return :(@reg_w_named!($cpu, IP, $data))
+	end
+	
+	macro ip_add!(cpu, addend)
+		return :(@ip!($cpu, @ip($cpu) + $addend))
+	end
+
+	# Segment register access function
+	macro sreg!(cpu, seq, data)
+		return :(unsafe_store!(convert(Ptr{Uint16}, $cpu.seg_regs + $seq * 2), $data, 1))
+	end
+
+	macro sreg(cpu, seq)
+		return :(unsafe_load(convert(Ptr{Uint16}, $cpu.seg_regs + $seq * 2), 1))
+	end
+
+	macro sreg_shadow!(cpu, seq, data)
+		return :(unsafe_store!(convert(Ptr{Uint64}, $cpu.seg_shadow_regs + $seq * 8), $data, 1))
+	end
+
+	macro sreg_shadow(cpu, seq)
+		return :(unsafe_load(convert(Ptr{Uint64}, $cpu.seg_shadow_regs + $seq * 8), 1))
+	end
+
+	# CPU functions
+	function loop(cpu:: CPU)
+		while true
+			cpu.decoding_rip = @rip(cpu)
+			cpu.decoding_eip = @eip(cpu)
+			execute(fetch_op_byte())
+		end
+	end
+
+	function logical_to_linear_real_mode(cpu:: CPU, seg:: Int, offset:: Uint16)
+		return (@sreg_shadow(cpu, seg) & 0xffffffff) + offset
+	end
+
+	function logical_to_linear(cpu:: CPU)
+		if true # Condition to fetch instruction in real mode
+			return logical_to_linear_real_mode(cpu, CS, @ip(cpu))
+		end
+	end
+
+	function reset(cpu:: CPU)
+		@rip!(cpu, 0x000000000000FFF0)
+		@sreg!(cpu, CS, 0xF000)
+		@sreg_shadow!(cpu, CS, 0xFFFF0000)
+		@sreg!(cpu, DS, 0)
+		@sreg!(cpu, ES, 0)
+		@sreg!(cpu, SS, 0)
+		@reg_w_named!(cpu, RSP, 0)
+	end
 
 
 	# ------------------- Testing -----------------------------
@@ -190,15 +263,12 @@ module JIA32
 	# Unit testing
 	if (length(ARGS) > 0) && ARGS[1] == "test"
 		cpu = JIA32.CPU()
+		reset(cpu)
+		@printf("%x\n", logical_to_linear(cpu))
 
 		println(macroexpand(:@reg_w32!(cpu, RCX, @reg_r32(cpu, RAX))))
 		# Show generated code
 		i = 3
-		if (rand(1:10) % 3 == 0)
-			t = Uint64
-		else
-			t = Uint32
-		end
 		@code_native(dummy(cpu))
 		println()
 		@code_native(dummy2(cpu))
@@ -216,6 +286,8 @@ module JIA32
 		@code_native(dummy8(cpu))
 		println()
 		@code_native(dummy9(cpu))
+		println()
+		@code_native(logical_to_linear(cpu))
 		println()
 
 		# Testing r/w
