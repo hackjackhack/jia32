@@ -1,6 +1,7 @@
 include("hw/MMIO.jl")
 
 type TestDev <: MMIO
+	base:: Uint64
 	state:: Int
 end
 
@@ -66,7 +67,9 @@ function register_phys_io_map(
 		memory.iomap_w32[i] = f_w32
 		memory.iomap_w16[i] = f_w16
 		memory.iomap_w8[i] = f_w8
-	end 
+	end
+
+	device.base = start
 end
 
 # Read access functions
@@ -77,12 +80,12 @@ end
 	return memory.iomap_r64[seq](memory.iomap_dev[seq], addr)
 end
 
-function phys_read_u64(memory:: PhysicalMemory, addr:: Uint64)
+@noinline function phys_read_u64(memory:: PhysicalMemory, addr:: Uint64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
 		return unsafe_load(convert(Ptr{Uint64}, memory.baseptr + addr), 1)
 	end
-	return uint64(io_r64(memory, addr))
+	return Uint64(io_r64(memory, addr))
 end
 
 function phys_read_s64(memory:: PhysicalMemory, addr:: Uint64)
@@ -90,7 +93,7 @@ function phys_read_s64(memory:: PhysicalMemory, addr:: Uint64)
 	if !isIO
 		return unsafe_load(convert(Ptr{Int64}, memory.baseptr + addr), 1)
 	end
-	return int64(io_r64(memory, addr))
+	return Int64(io_r64(memory, addr))
 end
 
 # 32-bit
@@ -104,7 +107,7 @@ function phys_read_u32(memory:: PhysicalMemory, addr:: Uint64)
 	if !isIO
 		return unsafe_load(convert(Ptr{Uint32}, memory.baseptr + addr), 1)
 	end
-	return uint32(io_r32(memory, addr))
+	return Uint32(io_r32(memory, addr))
 end
 
 function phys_read_s32(memory:: PhysicalMemory, addr:: Uint64)
@@ -112,7 +115,7 @@ function phys_read_s32(memory:: PhysicalMemory, addr:: Uint64)
 	if !isIO
 		return unsafe_load(convert(Ptr{Int32}, memory.baseptr + addr), 1)
 	end
-	return int32(io_r32(memory, addr))
+	return Int32(io_r32(memory, addr))
 end
 
 # 16-bit
@@ -126,7 +129,7 @@ function phys_read_u16(memory:: PhysicalMemory, addr:: Uint64)
 	if !isIO
 		return unsafe_load(convert(Ptr{Uint16}, memory.baseptr + addr), 1);
 	end
-	return uint16(io_r16(memory, addr))
+	return Uint16(io_r16(memory, addr))
 end
 
 function phys_read_s16(memory:: PhysicalMemory, addr:: Uint64)
@@ -134,7 +137,7 @@ function phys_read_s16(memory:: PhysicalMemory, addr:: Uint64)
 	if !isIO
 		return unsafe_load(convert(Ptr{Int16}, memory.baseptr + addr), 1);
 	end
-	return int16(io_r16(memory, addr))
+	return Int16(io_r16(memory, addr))
 end
 
 # 8-bit
@@ -148,7 +151,7 @@ function phys_read_u8(memory:: PhysicalMemory, addr:: Uint64)
 	if !isIO
 		return unsafe_load(convert(Ptr{Uint8}, memory.baseptr + addr), 1);
 	end
-	return io_r8(memory, addr)
+	return Uint8(io_r8(memory, addr))
 end
 
 function phys_read_s8(memory:: PhysicalMemory, addr:: Uint64)
@@ -156,7 +159,7 @@ function phys_read_s8(memory:: PhysicalMemory, addr:: Uint64)
 	if !isIO
 		return unsafe_load(convert(Ptr{Int8}, memory.baseptr + addr), 1);
 	end
-	return int8(io_r8(memory, addr))
+	return Int8(io_r8(memory, addr))
 end
 
 # Write access functions
@@ -258,28 +261,26 @@ end
 
 # For code_native
 function dummy(mem:: PhysicalMemory)
-	for i = 0 : mem.size - 1
-		phys_write_u8(mem, uint64(i), uint8(i & 0xff))
-	end
+	return Uint64(phys_read_u64(mem, Uint64(0x100))) + 20
 end
 
 # Unit testing
 if (length(ARGS) > 0) && ARGS[1] == "test"
-	mem = PhysicalMemory(uint64(4096*1024))
+	mem = PhysicalMemory(UInt64(4096*1024))
 	println("Testing $(@__FILE__())...")
-	@code_native(phys_read_u8(mem, uint64(0x12340)))
-	@code_native(phys_write_u64(mem, uint64(0x12340), 0x12345678deadbeef))
-
-
+	@code_native(phys_read_u8(mem, UInt64(0x12340)))
+	@code_native(phys_write_u64(mem, UInt64(0x12340), 0x12345678deadbeef))
+	@code_native(dummy(mem))
+	dummy(mem)
 	# Test basic r/w
 	println("Testing basic r/w functions ... ")
 	# read_u8 == write_u8
 	println("read_u8 == write_u8")
 	for i = 0 : mem.size - 1
-		phys_write_u8(mem, uint64(i), uint8(0xab))
+		phys_write_u8(mem, UInt64(i), UInt8(0xab))
 	end
 	for i = 0 : mem.size - 1
-		if phys_read_u8(mem, uint64(i)) != uint8(0xab)
+		if phys_read_u8(mem, UInt64(i)) != UInt8(0xab)
 			error("phys_read_u8 != phys_write_u8")
 		end
 	end
@@ -287,10 +288,10 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 	# read_s8 == write_s8
 	println("read_s8 == write_s8")
 	for i = 0 : mem.size - 1
-		phys_write_s8(mem, uint64(i), int8(-1))
+		phys_write_s8(mem, UInt64(i), Int8(-1))
 	end
 	for i = 0 : mem.size - 1
-		if phys_read_s8(mem, uint64(i)) != -1
+		if phys_read_s8(mem, UInt64(i)) != -1
 			error("phys_read_s8 != phys_write_s8")
 		end
 	end
@@ -298,22 +299,22 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 	for offset = 0 : 1
 		println("read_u16 == write_u16, offset = $offset")
 		# read_u16 == write_u16
-		for i = range(offset, 2, int((mem.size >> 1)))
-			phys_write_u16(mem, uint64(i), uint16(0xdead))
+		for i = range(offset, 2, Int((mem.size >> 1)))
+			phys_write_u16(mem, UInt64(i), UInt16(0xdead))
 		end
-		for i = range(offset, 2, int((mem.size >> 1)))
-			if phys_read_u16(mem, uint64(i)) != uint16(0xdead)
+		for i = range(offset, 2, Int((mem.size >> 1)))
+			if phys_read_u16(mem, UInt64(i)) != UInt16(0xdead)
 				error("phys_read_u16 != phys_write_u16 on offset $(offset)")
 			end
 		end
 
 		println("read_s16 == write_s16, offset = $offset")
 		# read_s16 == write_s16
-		for i = range(offset, 2, int((mem.size >> 1)))
-			phys_write_s16(mem, uint64(i), int16(-16384))
+		for i = range(offset, 2, Int((mem.size >> 1)))
+			phys_write_s16(mem, UInt64(i), Int16(-16384))
 		end
-		for i = range(offset, 2, int((mem.size >> 1)))
-			if phys_read_s16(mem, uint64(i)) != int16(-16384)
+		for i = range(offset, 2, Int((mem.size >> 1)))
+			if phys_read_s16(mem, UInt64(i)) != Int16(-16384)
 				error("phys_read_s16 != phys_write_s16 on offset $(offset)")
 			end
 		end
@@ -323,21 +324,21 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 		println("read_u32 == write_u32, offset = $offset")
 		# read_u32 == write_u32
 		for i = range(offset, 4, ((mem.size >> 2)))
-			phys_write_u32(mem, uint64(i), uint32(0xdeadbeef))
+			phys_write_u32(mem, UInt64(i), UInt32(0xdeadbeef))
 		end
 		for i = range(offset, 4, ((mem.size >> 2)))
-			if phys_read_u32(mem, uint64(i)) != uint32(0xdeadbeef)
+			if phys_read_u32(mem, UInt64(i)) != UInt32(0xdeadbeef)
 				error("phys_read_u32 != phys_write_u32 on offset $(offset)")
 			end
 		end
 
 		println("read_s32 == write_s32, offset = $offset")
 		# read_s32 == write_s32
-		for i = range(offset, 4, int((mem.size >> 2)))
-			phys_write_s32(mem, uint64(i), -int32(0x12345678))
+		for i = range(offset, 4, Int((mem.size >> 2)))
+			phys_write_s32(mem, UInt64(i), -Int32(0x12345678))
 		end
-		for i = range(offset, 4, int((mem.size >> 2)))
-			if phys_read_s32(mem, uint64(i)) != -int32(0x12345678)
+		for i = range(offset, 4, Int((mem.size >> 2)))
+			if phys_read_s32(mem, UInt64(i)) != -Int32(0x12345678)
 				error("phys_read_s32 != phys_write_s32 on offset $(offset)")
 			end
 		end
@@ -347,10 +348,10 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 		println("read_u64 == write_u64, offset = $offset")
 		# read_u64 == write_u64
 		for i = range(offset, 8, ((mem.size >> 3)))
-			phys_write_u64(mem, uint64(i), uint64(0x87654321deadbeef))
+			phys_write_u64(mem, UInt64(i), UInt64(0x87654321deadbeef))
 		end
 		for i = range(offset, 8, ((mem.size >> 3)))
-			if phys_read_u64(mem, uint64(i)) != uint64(0x87654321deadbeef)
+			if phys_read_u64(mem, UInt64(i)) != UInt64(0x87654321deadbeef)
 				error("phys_read_u64 != phys_write_u64 on offset $(offset)")
 			end
 		end
@@ -358,10 +359,10 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 		println("read_s64 == write_s64, offset = $offset")
 		# read_s64 == write_s64
 		for i = range(offset, 8, ((mem.size >> 3)))
-			phys_write_s64(mem, uint64(i), -int64(0x12345678deadbeef))
+			phys_write_s64(mem, UInt64(i), -Int64(0x12345678deadbeef))
 		end
 		for i = range(offset, 8, ((mem.size >> 3)))
-			if phys_read_s64(mem, uint64(i)) != -int64(0x12345678deadbeef)
+			if phys_read_s64(mem, UInt64(i)) != -Int64(0x12345678deadbeef)
 				error("phys_read_s64 != phys_write_s64 on offset $(offset)")
 			end
 		end
@@ -372,28 +373,28 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 	# Test misaligned and mismatched r/w
 	print("Testing mismatched r/w (assuming little endian) ... ")
 	for i = 0 : mem.size - 1
-		phys_write_u8(mem, uint64(i), uint8(i & 0xff))
+		phys_write_u8(mem, UInt64(i), UInt8(i & 0xff))
 	end
 
-	if phys_read_u16(mem, uint64(0)) != uint16(0x100)
+	if phys_read_u16(mem, UInt64(0)) != UInt16(0x100)
 		error("phys_read_u16 on 0001 != 0x0100")
 	end
-	if phys_read_u16(mem, uint64(1)) != uint16(0x201)
+	if phys_read_u16(mem, UInt64(1)) != UInt16(0x201)
 		error("phys_read_u16 on 0102 != 0x0201")
 	end
-	if phys_read_s16(mem, uint64(0xfd)) != int16(-259)
+	if phys_read_s16(mem, UInt64(0xfd)) != Int16(-259)
 		error("phys_read_s16 on fdfe != -259")
 	end
-	if phys_read_u32(mem, uint64(3)) != uint32(0x6050403)
+	if phys_read_u32(mem, UInt64(3)) != UInt32(0x6050403)
 		error("phys_read_u32 on 03040506 != 0x06050403")
 	end
-	if phys_read_s32(mem, uint64(0x81)) != int32(-2071756159)
+	if phys_read_s32(mem, UInt64(0x81)) != Int32(-2071756159)
 		error("phys_read_s32 on 81828384 != -2071756159")
 	end
-	if phys_read_u64(mem, uint64(0x7d)) != uint64(0x84838281807f7e7d)
+	if phys_read_u64(mem, UInt64(0x7d)) != UInt64(0x84838281807f7e7d)
 		error("phys_read_u64 on 7d7e7f8081828384 != 0x84838281807f7e7d")
 	end
-	if phys_read_s64(mem, uint64(0x9b)) != int64(-6727919760893436773)
+	if phys_read_s64(mem, UInt64(0x9b)) != Int64(-6727919760893436773)
 		error("phys_read_s64 on 9b9c9d9e9fa0a1a2 != -6727919760893436773")
 	end
 	println("OK")
@@ -435,28 +436,28 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 
 	print("Testing I/O mappinp ... ")
 	fill!(mem.array, 0)
-	dev = TestDev(0)
+	dev = TestDev(0, 0)
 	register_phys_io_map(mem, Uint64(0xe000), Uint64(0x1000), dev, 
 			read64, read32, read16, read8,
 			write64, write32, write16, write8)
 
-	if phys_read_u64(mem, uint64(0xe000)) != 0xabcdefabdeadbeef
+	if phys_read_u64(mem, UInt64(0xe000)) != 0xabcdefabdeadbeef
 		error("IO r64 on 0xe000 should be 0xabcdefabdeadbeef")
 	end
-	if phys_read_u16(mem, uint64(0xe000)) != 0xabcd
+	if phys_read_u16(mem, UInt64(0xe000)) != 0xabcd
 		error("IO r16 on 0xe000 should be 0xabcd")
 	end
-	if phys_read_u64(mem, uint64(0xf000)) != Uint64(0)
+	if phys_read_u64(mem, UInt64(0xf000)) != Uint64(0)
 		error("IO r64 on 0xf000 should be 0")
 	end
-	if phys_read_u8(mem, uint64(0xefff)) != Uint8(0xab)
+	if phys_read_u8(mem, UInt64(0xefff)) != Uint8(0xab)
 		error("IO r8 on 0xefff should be 0xab")
 	end
-	phys_write_u32(mem, uint64(0xe320), Uint32(1))
-	phys_write_u32(mem, uint64(0xe320), Uint32(2))
-	phys_write_u32(mem, uint64(0xe320), Uint32(3))
-	phys_write_u32(mem, uint64(0xe320), Uint32(4))
-	if phys_read_u64(mem, uint64(0xe300)) != Uint64(10)
+	phys_write_u32(mem, UInt64(0xe320), Uint32(1))
+	phys_write_u32(mem, UInt64(0xe320), Uint32(2))
+	phys_write_u32(mem, UInt64(0xe320), Uint32(3))
+	phys_write_u32(mem, UInt64(0xe320), Uint32(4))
+	if phys_read_u64(mem, UInt64(0xe300)) != Uint64(10)
 		error("IO r64 on 0xe320 should be 10 after w32 on 0x320 1,2,3,4")
 	end
 	println("OK")
