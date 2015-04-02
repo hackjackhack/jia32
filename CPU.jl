@@ -204,6 +204,7 @@ end
 	end
 end
 
+# -----64-----
 function ru64_crosspg(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
 	ret = UInt64(0)
 	for i = 0 : 7
@@ -218,28 +219,59 @@ end
 end
 
 function ru64(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
-	if ((offset + 7) $ offset) & (~UInt64(0xfff)) == 0
+	#if ((offset + 7) $ offset) & (~UInt64(0xfff)) == 0
+	if (offset & (UInt64(0xfff))) < 4089
 		# In the same page
 		return ru64_fast(cpu, mem, seg, offset)
 	else
 		# Cross-page access
 		return ru64_crosspg(cpu, mem, seg, offset)
 	end
-	
 end
-function rs64(cpu:: CPU, seg:: Int, offset:: UInt64)
+
+@inline function rs64(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	return reinterpret(Int64, ru64(cpu, mem, seg, offset))
 end
-function ru32(cpu:: CPU, seg:: Int, offset:: UInt64)
+
+# -----32-----
+function ru32_crosspg(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	ret = UInt32(0)
+	for i = 0 : 3
+		ret += (UInt32(phys_read_u8(mem, logical_to_linear(cpu, seg, offset + i))) << (i << 3))
+	end
+	return ret
 end
-function rs32(cpu:: CPU, seg:: Int, offset:: UInt64)
+
+@noinline function ru32_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	phys_addr = logical_to_linear(cpu, seg, offset)
+	return phys_read_u32(mem, phys_addr)
 end
-function ru16(cpu:: CPU, seg:: Int, offset:: UInt64)
+
+function ru32(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	#if ((offset + 3) $ offset) & (~UInt64(0xfff)) == 0
+	if (offset & (UInt64(0xfff))) < 4093
+		# In the same page
+		return ru32_fast(cpu, mem, seg, offset)
+	else
+		# Cross-page access
+		return ru32_crosspg(cpu, mem, seg, offset)
+	end
 end
-function rs16(cpu:: CPU, seg:: Int, offset:: UInt64)
+
+@inline function rs32(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	return reinterpret(Int32, ru32(cpu, mem, seg, offset))
 end
-function ru8(cpu:: CPU, seg:: Int, offset:: UInt64)
+
+#-----16-----
+function ru16(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
 end
-function rs8(cpu:: CPU, seg:: Int, offset:: UInt64)
+function rs16(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+end
+
+#-----8-----
+function ru8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+end
+function rs8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
 end
 
 
@@ -337,6 +369,14 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 	@code_native(ru64(cpu, mem, 0, UInt64(0x1234)))
 	println()
 	@code_native(ru64_fast(cpu, mem, 0, UInt64(0x1234)))
+	println()
+	@code_native(rs64(cpu, mem, 0, UInt64(0x1234)))
+	println()
+	@code_native(ru32(cpu, mem, 0, UInt64(0x1234)))
+	println()
+	@code_native(ru32_fast(cpu, mem, 0, UInt64(0x1234)))
+	println()
+	@code_native(rs32(cpu, mem, 0, UInt64(0x1234)))
 	println()
 
 	# Testing r/w

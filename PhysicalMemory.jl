@@ -72,6 +72,11 @@ function register_phys_io_map(
 	device.base = start
 end
 
+# The following R/W functions should be only called by MMU functions.
+# E.g. ru64, ru43, wu64, etc. Therefore, it is assumed the cross-page
+# case has been taken care by MMU functions. Never call these functions
+# unless the above assumption is satisfied.
+
 # Read access functions
 
 # 64-bit 
@@ -143,7 +148,7 @@ end
 # 8-bit
 @noinline function io_r8(memory:: PhysicalMemory, addr:: UInt64)
 	seq = (addr >>> 12) + 1
-	return Uint8(memory.iomap_r8[seq](memory.iomap_dev[seq], addr))
+	return UInt8(memory.iomap_r8[seq](memory.iomap_dev[seq], addr))
 end
 
 function phys_read_u8(memory:: PhysicalMemory, addr:: UInt64)
