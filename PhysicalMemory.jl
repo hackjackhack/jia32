@@ -1,14 +1,14 @@
 include("hw/MMIO.jl")
 
 type TestDev <: MMIO
-	base:: Uint64
+	base:: UInt64
 	state:: Int
 end
 
 type PhysicalMemory
-	size:: Uint64
-	array:: Array{Uint8}
-	baseptr:: Ptr{Uint8}
+	size:: UInt64
+	array:: Array{UInt8}
+	baseptr:: Ptr{UInt8}
 	iomap:: Array{Bool}
 	iomap_dev:: Array{MMIO}
 	iomap_r64:: Array{Function}
@@ -20,12 +20,12 @@ type PhysicalMemory
 	iomap_w16:: Array{Function}
 	iomap_w8:: Array{Function}
 
-	function PhysicalMemory(size:: Uint64)
+	function PhysicalMemory(size:: UInt64)
 		# Extra space for buggy manipulation on the last word
 		# (This should never happen since MMU will performance 
 		# boundary check before accessing physical memory.) 
 		m = new(size,
-			Array(Uint8, size + 4096),
+			Array(UInt8, size + 4096),
 			0,
 			Array(Bool, (size + 4096) >>> 12 ),
 			Array(MMIO, (size + 4096) >>> 12 ),
@@ -41,14 +41,14 @@ type PhysicalMemory
 		fill!(m.array, 0)
 		fill!(m.iomap, false)
 		
-		m.baseptr = convert(Ptr{Uint8}, m.array)
+		m.baseptr = convert(Ptr{UInt8}, pointer(m.array))
 
 		return m
 	end
 end
 
 function register_phys_io_map(
-	memory:: PhysicalMemory, start:: Uint64, size:: Uint64,
+	memory:: PhysicalMemory, start:: UInt64, size:: UInt64,
 	device:: MMIO,
 	f_r64:: Function, f_r32:: Function, f_r16:: Function, f_r8:: Function,
 	f_w64:: Function, f_w32:: Function, f_w16:: Function, f_w8:: Function)
@@ -75,20 +75,20 @@ end
 # Read access functions
 
 # 64-bit 
-@noinline function io_r64(memory:: PhysicalMemory, addr:: Uint64)
+@noinline function io_r64(memory:: PhysicalMemory, addr:: UInt64)
 	seq = (addr >>> 12) + 1
 	return memory.iomap_r64[seq](memory.iomap_dev[seq], addr)
 end
 
-@noinline function phys_read_u64(memory:: PhysicalMemory, addr:: Uint64)
+@noinline function phys_read_u64(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
-		return unsafe_load(convert(Ptr{Uint64}, memory.baseptr + addr), 1)
+		return unsafe_load(convert(Ptr{UInt64}, memory.baseptr + addr), 1)
 	end
-	return Uint64(io_r64(memory, addr))
+	return UInt64(io_r64(memory, addr))
 end
 
-function phys_read_s64(memory:: PhysicalMemory, addr:: Uint64)
+function phys_read_s64(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
 		return unsafe_load(convert(Ptr{Int64}, memory.baseptr + addr), 1)
@@ -97,20 +97,20 @@ function phys_read_s64(memory:: PhysicalMemory, addr:: Uint64)
 end
 
 # 32-bit
-@noinline function io_r32(memory:: PhysicalMemory, addr:: Uint64)
+@noinline function io_r32(memory:: PhysicalMemory, addr:: UInt64)
 	seq = (addr >>> 12) + 1
 	return memory.iomap_r32[seq](memory.iomap_dev[seq], addr)
 end
 
-function phys_read_u32(memory:: PhysicalMemory, addr:: Uint64)
+function phys_read_u32(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
-		return unsafe_load(convert(Ptr{Uint32}, memory.baseptr + addr), 1)
+		return unsafe_load(convert(Ptr{UInt32}, memory.baseptr + addr), 1)
 	end
-	return Uint32(io_r32(memory, addr))
+	return UInt32(io_r32(memory, addr))
 end
 
-function phys_read_s32(memory:: PhysicalMemory, addr:: Uint64)
+function phys_read_s32(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
 		return unsafe_load(convert(Ptr{Int32}, memory.baseptr + addr), 1)
@@ -119,20 +119,20 @@ function phys_read_s32(memory:: PhysicalMemory, addr:: Uint64)
 end
 
 # 16-bit
-@noinline function io_r16(memory:: PhysicalMemory, addr:: Uint64)
+@noinline function io_r16(memory:: PhysicalMemory, addr:: UInt64)
 	seq = (addr >>> 12) + 1
 	return memory.iomap_r16[seq](memory.iomap_dev[seq], addr)
 end
 
-function phys_read_u16(memory:: PhysicalMemory, addr:: Uint64)
+function phys_read_u16(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
-		return unsafe_load(convert(Ptr{Uint16}, memory.baseptr + addr), 1);
+		return unsafe_load(convert(Ptr{UInt16}, memory.baseptr + addr), 1);
 	end
-	return Uint16(io_r16(memory, addr))
+	return UInt16(io_r16(memory, addr))
 end
 
-function phys_read_s16(memory:: PhysicalMemory, addr:: Uint64)
+function phys_read_s16(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
 		return unsafe_load(convert(Ptr{Int16}, memory.baseptr + addr), 1);
@@ -141,44 +141,44 @@ function phys_read_s16(memory:: PhysicalMemory, addr:: Uint64)
 end
 
 # 8-bit
-@noinline function io_r8(memory:: PhysicalMemory, addr:: Uint64)
+@noinline function io_r8(memory:: PhysicalMemory, addr:: UInt64)
 	seq = (addr >>> 12) + 1
-	return memory.iomap_r8[seq](memory.iomap_dev[seq], addr)
+	return Uint8(memory.iomap_r8[seq](memory.iomap_dev[seq], addr))
 end
 
-function phys_read_u8(memory:: PhysicalMemory, addr:: Uint64)
+function phys_read_u8(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
-		return unsafe_load(convert(Ptr{Uint8}, memory.baseptr + addr), 1);
+		return unsafe_load(convert(Ptr{UInt8}, memory.baseptr + addr), 1);
 	end
-	return Uint8(io_r8(memory, addr))
+	return io_r8(memory, addr)
 end
 
-function phys_read_s8(memory:: PhysicalMemory, addr:: Uint64)
+function phys_read_s8(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
 		return unsafe_load(convert(Ptr{Int8}, memory.baseptr + addr), 1);
 	end
-	return Int8(io_r8(memory, addr))
+	return reinterpret(Int8, io_r8(memory, addr))
 end
 
 # Write access functions
 # 64-bit 
-@noinline function io_w64(memory:: PhysicalMemory, addr:: Uint64, data:: Uint64)
+@noinline function io_w64(memory:: PhysicalMemory, addr:: UInt64, data:: UInt64)
 	seq = (addr >>> 12) + 1
 	memory.iomap_w64[seq](memory.iomap_dev[seq], addr, data)
 end
 
-function phys_write_u64(memory:: PhysicalMemory, addr:: Uint64, data:: Uint64)
+function phys_write_u64(memory:: PhysicalMemory, addr:: UInt64, data:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
-		unsafe_store!(convert(Ptr{Uint64}, memory.baseptr + addr), data, 1);
+		unsafe_store!(convert(Ptr{UInt64}, memory.baseptr + addr), data, 1);
 		return
 	end
 	io_w64(memory, addr, data)
 end
 
-function phys_write_s64(memory:: PhysicalMemory, addr:: Uint64, data:: Int64)
+function phys_write_s64(memory:: PhysicalMemory, addr:: UInt64, data:: Int64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
 		unsafe_store!(convert(Ptr{Int64}, memory.baseptr + addr), data, 1);
@@ -188,21 +188,21 @@ function phys_write_s64(memory:: PhysicalMemory, addr:: Uint64, data:: Int64)
 end
 
 # 32-bit
-@noinline function io_w32(memory:: PhysicalMemory, addr:: Uint64, data:: Uint32)
+@noinline function io_w32(memory:: PhysicalMemory, addr:: UInt64, data:: UInt32)
 	seq = (addr >>> 12) + 1
 	memory.iomap_w32[seq](memory.iomap_dev[seq], addr, data)
 end
 
-function phys_write_u32(memory:: PhysicalMemory, addr:: Uint64, data:: Uint32)
+function phys_write_u32(memory:: PhysicalMemory, addr:: UInt64, data:: UInt32)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
-		unsafe_store!(convert(Ptr{Uint32}, memory.baseptr + addr), data, 1);
+		unsafe_store!(convert(Ptr{UInt32}, memory.baseptr + addr), data, 1);
 		return
 	end
 	io_w32(memory, addr, data)
 end
 
-function phys_write_s32(memory:: PhysicalMemory, addr:: Uint64, data:: Int32)
+function phys_write_s32(memory:: PhysicalMemory, addr:: UInt64, data:: Int32)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
 		unsafe_store!(convert(Ptr{Int32}, memory.baseptr + addr), data, 1);
@@ -212,21 +212,21 @@ function phys_write_s32(memory:: PhysicalMemory, addr:: Uint64, data:: Int32)
 end
 
 # 16-bit
-@noinline function io_w16(memory:: PhysicalMemory, addr:: Uint64, data:: Uint16)
+@noinline function io_w16(memory:: PhysicalMemory, addr:: UInt64, data:: UInt16)
 	seq = (addr >>> 12) + 1
 	memory.iomap_w16[seq](memory.iomap_dev[seq], addr, data)
 end
 
-function phys_write_u16(memory:: PhysicalMemory, addr:: Uint64, data:: Uint16)
+function phys_write_u16(memory:: PhysicalMemory, addr:: UInt64, data:: UInt16)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
-		unsafe_store!(convert(Ptr{Uint16}, memory.baseptr + addr), data, 1);
+		unsafe_store!(convert(Ptr{UInt16}, memory.baseptr + addr), data, 1);
 		return
 	end
 	io_w16(memory, addr, data)
 end
 
-function phys_write_s16(memory:: PhysicalMemory, addr:: Uint64, data:: Int16)
+function phys_write_s16(memory:: PhysicalMemory, addr:: UInt64, data:: Int16)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
 		unsafe_store!(convert(Ptr{Int16}, memory.baseptr + addr), data, 1);
@@ -236,21 +236,21 @@ function phys_write_s16(memory:: PhysicalMemory, addr:: Uint64, data:: Int16)
 end
 
 # 8-bit
-@noinline function io_w8(memory:: PhysicalMemory, addr:: Uint64, data:: Uint8)
+@noinline function io_w8(memory:: PhysicalMemory, addr:: UInt64, data:: UInt8)
 	seq = (addr >>> 12) + 1
 	memory.iomap_w8[seq](memory.iomap_dev[seq], addr, data)
 end
 
-function phys_write_u8(memory:: PhysicalMemory, addr:: Uint64, data:: Uint8)
+function phys_write_u8(memory:: PhysicalMemory, addr:: UInt64, data:: UInt8)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
-		unsafe_store!(convert(Ptr{Uint8}, memory.baseptr + addr), data, 1);
+		unsafe_store!(convert(Ptr{UInt8}, memory.baseptr + addr), data, 1);
 		return
 	end
 	io_w8(memory, addr, data)
 end
 
-function phys_write_s8(memory:: PhysicalMemory, addr:: Uint64, data:: Int8)
+function phys_write_s8(memory:: PhysicalMemory, addr:: UInt64, data:: Int8)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
 		unsafe_store!(convert(Ptr{Int8}, memory.baseptr + addr), data, 1);
@@ -261,7 +261,7 @@ end
 
 # For code_native
 function dummy(mem:: PhysicalMemory)
-	return Uint64(phys_read_u64(mem, Uint64(0x100))) + 20
+	return UInt64(phys_read_u64(mem, UInt64(0x100))) + 20
 end
 
 # Unit testing
@@ -269,6 +269,7 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 	mem = PhysicalMemory(UInt64(4096*1024))
 	println("Testing $(@__FILE__())...")
 	@code_native(phys_read_u8(mem, UInt64(0x12340)))
+	@code_native(phys_read_s8(mem, UInt64(0x12340)))
 	@code_native(phys_write_u64(mem, UInt64(0x12340), 0x12345678deadbeef))
 	@code_native(dummy(mem))
 	dummy(mem)
@@ -400,44 +401,44 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 	println("OK")
 
 	# Test IO mapping
-	function read8(dev:: TestDev, addr:: Uint64)
+	function read8(dev:: TestDev, addr:: UInt64)
 		return 0xab
 	end
 
-	function read16(dev:: TestDev, addr:: Uint64)
+	function read16(dev:: TestDev, addr:: UInt64)
 		return 0xabcd
 	end
 
-	function read32(dev:: TestDev, addr:: Uint64)
+	function read32(dev:: TestDev, addr:: UInt64)
 		return 0xabcdefab
 	end
 
-	function read64(dev:: TestDev, addr:: Uint64)
-		if addr == Uint64(0xe300)
+	function read64(dev:: TestDev, addr:: UInt64)
+		if addr == UInt64(0xe300)
 			return dev.state
 		end
 		return 0xabcdefabdeadbeef
 	end
 
-	function write8(dev:: TestDev, addr:: Uint64, data:: Uint8)
+	function write8(dev:: TestDev, addr:: UInt64, data:: UInt8)
 	end
 
-	function write16(dev:: TestDev, addr:: Uint64, data:: Uint16)
+	function write16(dev:: TestDev, addr:: UInt64, data:: UInt16)
 	end
 
-	function write32(dev:: TestDev, addr:: Uint64, data:: Uint32)
-		if addr == Uint64(0xe320)
+	function write32(dev:: TestDev, addr:: UInt64, data:: UInt32)
+		if addr == UInt64(0xe320)
 			dev.state += data
 		end
 	end
 
-	function write64(dev:: TestDev, addr:: Uint64, data:: Uint64)
+	function write64(dev:: TestDev, addr:: UInt64, data:: UInt64)
 	end
 
 	print("Testing I/O mappinp ... ")
 	fill!(mem.array, 0)
 	dev = TestDev(0, 0)
-	register_phys_io_map(mem, Uint64(0xe000), Uint64(0x1000), dev, 
+	register_phys_io_map(mem, UInt64(0xe000), UInt64(0x1000), dev, 
 			read64, read32, read16, read8,
 			write64, write32, write16, write8)
 
@@ -447,17 +448,17 @@ if (length(ARGS) > 0) && ARGS[1] == "test"
 	if phys_read_u16(mem, UInt64(0xe000)) != 0xabcd
 		error("IO r16 on 0xe000 should be 0xabcd")
 	end
-	if phys_read_u64(mem, UInt64(0xf000)) != Uint64(0)
+	if phys_read_u64(mem, UInt64(0xf000)) != UInt64(0)
 		error("IO r64 on 0xf000 should be 0")
 	end
-	if phys_read_u8(mem, UInt64(0xefff)) != Uint8(0xab)
+	if phys_read_u8(mem, UInt64(0xefff)) != UInt8(0xab)
 		error("IO r8 on 0xefff should be 0xab")
 	end
-	phys_write_u32(mem, UInt64(0xe320), Uint32(1))
-	phys_write_u32(mem, UInt64(0xe320), Uint32(2))
-	phys_write_u32(mem, UInt64(0xe320), Uint32(3))
-	phys_write_u32(mem, UInt64(0xe320), Uint32(4))
-	if phys_read_u64(mem, UInt64(0xe300)) != Uint64(10)
+	phys_write_u32(mem, UInt64(0xe320), UInt32(1))
+	phys_write_u32(mem, UInt64(0xe320), UInt32(2))
+	phys_write_u32(mem, UInt64(0xe320), UInt32(3))
+	phys_write_u32(mem, UInt64(0xe320), UInt32(4))
+	if phys_read_u64(mem, UInt64(0xe300)) != UInt64(10)
 		error("IO r64 on 0xe320 should be 10 after w32 on 0x320 1,2,3,4")
 	end
 	println("OK")

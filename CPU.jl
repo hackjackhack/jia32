@@ -67,13 +67,13 @@ type CPU
 
 		# 16 64-bit general-purpose registers and instruction pointer
 		cpu.genl_regs_buffer = Array(UInt8, 16 * 8 + 8)
-		cpu.genl_regs = cpu.genl_regs_buffer
+		cpu.genl_regs = pointer(cpu.genl_regs_buffer)
 
 		# 6 16-bit segment register and their hidden parts
 		cpu.seg_regs_buffer = Array(UInt16, 6)
-		cpu.seg_regs = cpu.seg_regs_buffer
+		cpu.seg_regs = pointer(cpu.seg_regs_buffer)
 		cpu.seg_shadow_regs_buffer = Array(UInt64, 6)
-		cpu.seg_shadow_regs = cpu.seg_shadow_regs_buffer
+		cpu.seg_shadow_regs = pointer(cpu.seg_shadow_regs_buffer)
 
 		return cpu
 	end
