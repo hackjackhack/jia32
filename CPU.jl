@@ -263,18 +263,41 @@ end
 end
 
 #-----16-----
-function ru16(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+function ru16_crosspg(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	ret = UInt16(0)
+	for i = 0 : 1
+		ret += (UInt16(phys_read_u8(mem, logical_to_linear(cpu, seg, offset + i))) << (i << 3))
+	end
+	return ret
 end
-function rs16(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+
+@noinline function ru16_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	phys_addr = logical_to_linear(cpu, seg, offset)
+	return phys_read_u16(mem, phys_addr)
+end
+
+function ru16(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	if (offset & (UInt64(0xfff))) < 4095
+		# In the same page
+		return ru16_fast(cpu, mem, seg, offset)
+	else
+		# Cross-page access
+		return ru16_crosspg(cpu, mem, seg, offset)
+	end
+end
+
+@inline function rs16(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	return reinterpret(Int16, ru16(cpu, mem, seg, offset))
 end
 
 #-----8-----
 function ru8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	phys_addr = logical_to_linear(cpu, seg, offset)
+	return phys_read_u8(mem, phys_addr)
 end
 function rs8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	return reinterpret(Int8, ru8(cpu, mem, seg, offset))
 end
-
-
 
 # CPU functions
 function loop(cpu:: CPU)

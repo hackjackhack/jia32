@@ -93,6 +93,7 @@ end
 	return UInt64(io_r64(memory, addr))
 end
 
+#=
 function phys_read_s64(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
@@ -100,6 +101,7 @@ function phys_read_s64(memory:: PhysicalMemory, addr:: UInt64)
 	end
 	return Int64(io_r64(memory, addr))
 end
+=#
 
 # 32-bit
 @noinline function io_r32(memory:: PhysicalMemory, addr:: UInt64)
@@ -115,6 +117,7 @@ function phys_read_u32(memory:: PhysicalMemory, addr:: UInt64)
 	return UInt32(io_r32(memory, addr))
 end
 
+#=
 function phys_read_s32(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
@@ -122,6 +125,7 @@ function phys_read_s32(memory:: PhysicalMemory, addr:: UInt64)
 	end
 	return Int32(io_r32(memory, addr))
 end
+=#
 
 # 16-bit
 @noinline function io_r16(memory:: PhysicalMemory, addr:: UInt64)
@@ -137,6 +141,7 @@ function phys_read_u16(memory:: PhysicalMemory, addr:: UInt64)
 	return UInt16(io_r16(memory, addr))
 end
 
+#=
 function phys_read_s16(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
@@ -144,6 +149,7 @@ function phys_read_s16(memory:: PhysicalMemory, addr:: UInt64)
 	end
 	return Int16(io_r16(memory, addr))
 end
+=#
 
 # 8-bit
 @noinline function io_r8(memory:: PhysicalMemory, addr:: UInt64)
@@ -159,6 +165,7 @@ function phys_read_u8(memory:: PhysicalMemory, addr:: UInt64)
 	return io_r8(memory, addr)
 end
 
+#=
 function phys_read_s8(memory:: PhysicalMemory, addr:: UInt64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
@@ -166,6 +173,7 @@ function phys_read_s8(memory:: PhysicalMemory, addr:: UInt64)
 	end
 	return reinterpret(Int8, io_r8(memory, addr))
 end
+=#
 
 # Write access functions
 # 64-bit 
@@ -183,6 +191,7 @@ function phys_write_u64(memory:: PhysicalMemory, addr:: UInt64, data:: UInt64)
 	io_w64(memory, addr, data)
 end
 
+#=
 function phys_write_s64(memory:: PhysicalMemory, addr:: UInt64, data:: Int64)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
@@ -191,6 +200,7 @@ function phys_write_s64(memory:: PhysicalMemory, addr:: UInt64, data:: Int64)
 	end
 	io_w64(memory, addr, data)
 end
+=#
 
 # 32-bit
 @noinline function io_w32(memory:: PhysicalMemory, addr:: UInt64, data:: UInt32)
@@ -207,6 +217,7 @@ function phys_write_u32(memory:: PhysicalMemory, addr:: UInt64, data:: UInt32)
 	io_w32(memory, addr, data)
 end
 
+#=
 function phys_write_s32(memory:: PhysicalMemory, addr:: UInt64, data:: Int32)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
@@ -215,6 +226,7 @@ function phys_write_s32(memory:: PhysicalMemory, addr:: UInt64, data:: Int32)
 	end
 	io_w32(memory, addr, data)
 end
+=#
 
 # 16-bit
 @noinline function io_w16(memory:: PhysicalMemory, addr:: UInt64, data:: UInt16)
@@ -231,6 +243,7 @@ function phys_write_u16(memory:: PhysicalMemory, addr:: UInt64, data:: UInt16)
 	io_w16(memory, addr, data)
 end
 
+#=
 function phys_write_s16(memory:: PhysicalMemory, addr:: UInt64, data:: Int16)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
@@ -239,6 +252,7 @@ function phys_write_s16(memory:: PhysicalMemory, addr:: UInt64, data:: Int16)
 	end
 	io_w16(memory, addr, data)
 end
+=#
 
 # 8-bit
 @noinline function io_w8(memory:: PhysicalMemory, addr:: UInt64, data:: UInt8)
@@ -255,6 +269,7 @@ function phys_write_u8(memory:: PhysicalMemory, addr:: UInt64, data:: UInt8)
 	io_w8(memory, addr, data)
 end
 
+#=
 function phys_write_s8(memory:: PhysicalMemory, addr:: UInt64, data:: Int8)
 	@inbounds isIO = memory.iomap[(addr >>> 12) + 1]
 	if !isIO
@@ -263,6 +278,7 @@ function phys_write_s8(memory:: PhysicalMemory, addr:: UInt64, data:: Int8)
 	end
 	io_w8(memory, addr, data)
 end
+=#
 
 # For code_native
 function dummy(mem:: PhysicalMemory)
