@@ -52,11 +52,15 @@ type CPU
 	genl_regs:: Ptr{UInt8}
 	seg_regs_buffer:: Array{UInt16}
 	seg_regs:: Ptr{UInt16}
-	seg_shadow_regs_buffer:: Array{UInt64}
-	seg_shadow_regs:: Ptr{UInt64}
 	rflag:: UInt64
 
 	# Internal use
+	seg_regs_base_buffer:: Array{UInt64}
+	seg_regs_base:: Ptr{UInt64}
+
+	operand_size:: Int
+	address_size:: Int
+
 	decoding_rip:: UInt64
 	decoding_eip:: UInt32
 	decoding_ip:: UInt16
@@ -72,30 +76,15 @@ type CPU
 		# 6 16-bit segment register and their hidden parts
 		cpu.seg_regs_buffer = Array(UInt16, 6)
 		cpu.seg_regs = pointer(cpu.seg_regs_buffer)
-		cpu.seg_shadow_regs_buffer = Array(UInt64, 6)
-		cpu.seg_shadow_regs = pointer(cpu.seg_shadow_regs_buffer)
+		cpu.seg_regs_base_buffer = Array(UInt64, 6)
+		cpu.seg_regs_base = pointer(cpu.seg_regs_base_buffer)
+
+		cpu.operand_size = 16
+		cpu.address_size = 16
 
 		return cpu
 	end
 end
-#=
-macro def_genl_regs_get(rname, seq, width)
-	return esc(quote
-		@inline function $(symbol("get_$rname"))(cpu:: CPU)
-			return unsafe_load(convert(Ptr{$width}, cpu.genl_regs + $seq * 8), 1);
-		end
-	end)
-end
-
-@def_genl_regs_get(rax, 0, UInt64)
-@def_genl_regs_get(eax, 0, UInt32)
-@def_genl_regs_get(ax, 0, UInt16)
-@def_genl_regs_get(al, 0, UInt8)
-@def_genl_regs_get(rcx, 1, UInt64)
-@def_genl_regs_get(ecx, 1, UInt32)
-@def_genl_regs_get(cx, 1, UInt16)
-@def_genl_regs_get(cl, 1, UInt8)
-=#
 
 # General register access functions
 macro reg_w!(cpu, width, seq, data)
@@ -184,18 +173,18 @@ macro sreg(cpu, seq)
 	return :(unsafe_load(convert(Ptr{UInt16}, $cpu.seg_regs + $seq * 2), 1))
 end
 
-macro sreg_shadow!(cpu, seq, data)
-	return :(unsafe_store!(convert(Ptr{UInt64}, $cpu.seg_shadow_regs + $seq * 8), $data, 1))
+macro sreg_base!(cpu, seq, data)
+	return :(unsafe_store!(convert(Ptr{UInt64}, $cpu.seg_regs_base + $seq * 8), $data, 1))
 end
 
-macro sreg_shadow(cpu, seq)
-	return :(unsafe_load(convert(Ptr{UInt64}, $cpu.seg_shadow_regs + $seq * 8), 1))
+macro sreg_base(cpu, seq)
+	return :(unsafe_load(convert(Ptr{UInt64}, $cpu.seg_regs_base + $seq * 8), 1))
 end
 
 # MMU functions
 
 @noinline function logical_to_linear_real_mode(cpu:: CPU, seg:: Int, offset:: UInt16)
-	return UInt64((@sreg_shadow(cpu, seg) & 0xffffffff) + offset)
+	return UInt64((@sreg_base(cpu, seg) & 0xffffffff) + offset)
 end
 
 @noinline function logical_to_linear(cpu:: CPU, seg:: Int, offset:: UInt64)
@@ -300,25 +289,31 @@ function rs8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
 end
 
 # CPU functions
-function loop(cpu:: CPU)
+function fetch_op_byte(cpu:: CPU, mem:: PhysicalMemory)
+	if (cpu.address_size == 16)
+		return ru8(cpu, mem, CS, UInt64(@ip(cpu)))
+	end
+	return 0
+end
+
+function loop(cpu:: CPU, mem:: PhysicalMemory)
 	while true
-		cpu.decoding_rip = @rip(cpu)
-		cpu.decoding_eip = @eip(cpu)
-		execute(fetch_op_byte())
+		println(hex(fetch_op_byte(cpu, mem)))
 	end
 end
 
-# Volume 3, Chapter 9.10, Fig 9-3
 function reset(cpu:: CPU)
+	# Volume 3, Chapter 9.1.4 First instruction executed.
+	# Volume 3, Chapter 9.10, Fig 9-3
 	@rip!(cpu, 0x000000000000FFF0)
 	@sreg!(cpu, CS, 0xF000)
-	@sreg_shadow!(cpu, CS, 0xFFFF0000)
+	@sreg_base!(cpu, CS, 0xFFFF0000)
 	@sreg!(cpu, DS, 0)
-	@sreg_shadow!(cpu, DS, 0x0)
+	@sreg_base!(cpu, DS, 0x0)
 	@sreg!(cpu, ES, 0)
-	@sreg_shadow!(cpu, ES, 0x0)
+	@sreg_base!(cpu, ES, 0x0)
 	@sreg!(cpu, SS, 0)
-	@sreg_shadow!(cpu, SS, 0x0)
+	@sreg_base!(cpu, SS, 0x0)
 	@reg_w_named!(cpu, RSP, 0)
 end
 
