@@ -1,10 +1,5 @@
 include("hw/MMIO.jl")
 
-type TestDev <: MMIO
-	base:: UInt64
-	state:: Int
-end
-
 type PhysicalMemory
 	size:: UInt64
 	array:: Array{UInt8}
