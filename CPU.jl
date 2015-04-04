@@ -308,7 +308,7 @@ function loop(cpu:: CPU)
 	end
 end
 
-
+# Volume 3, Chapter 9.10, Fig 9-3
 function reset(cpu:: CPU)
 	@rip!(cpu, 0x000000000000FFF0)
 	@sreg!(cpu, CS, 0xF000)
