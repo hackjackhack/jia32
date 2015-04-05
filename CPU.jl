@@ -57,7 +57,7 @@ type CPU
 	rflag:: UInt64
 
 	# Internal use
-	docoding_rip:: UInt64
+	decoding_rip:: UInt64
 	decoding_eip:: UInt32
 	decoding_ip:: UInt16
 
