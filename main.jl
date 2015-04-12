@@ -28,6 +28,7 @@ function main()
 		error("Memory size must be between 8 and 65536")
 	end
 	cpu = CPU()
+	init(cpu)
 	physmem = PhysicalMemory(memsize * 1024 * 1024)
 
 	# Mapping EPROM

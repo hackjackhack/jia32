@@ -65,6 +65,8 @@ type CPU
 	decoding_eip:: UInt32
 	decoding_ip:: UInt16
 
+	emu_insn_tbl:: Array{Function}
+
 	# Constructor
 	function CPU()
 		cpu = new()
@@ -81,6 +83,7 @@ type CPU
 
 		cpu.operand_size = 16
 		cpu.address_size = 16
+		cpu.emu_insn_tbl = Array(Function, 1024)
 
 		return cpu
 	end
@@ -137,7 +140,7 @@ macro rip!(cpu, data)
 end
 
 macro rip_add!(cpu, addend)
-	return :(@rip!($cpu, @rip($cpu) + $addend))
+	return :(@rip!($cpu, (@rip($cpu) + $addend) & 0xffffffffffffffff))
 end
 
 macro eip(cpu)
@@ -149,7 +152,7 @@ macro eip!(cpu, data)
 end
 
 macro eip_add!(cpu, addend)
-	return :(@eip!($cpu, @eip($cpu) + $addend))
+	return :(@eip!($cpu, (@eip($cpu) + $addend) & 0xffffffff))
 end
 
 macro ip(cpu)
@@ -161,7 +164,7 @@ macro ip!(cpu, data)
 end
 
 macro ip_add!(cpu, addend)
-	return :(@ip!($cpu, @ip($cpu) + $addend))
+	return :(@ip!($cpu, (@ip($cpu) + $addend) & 0xffff))
 end
 
 # Segment register access function
@@ -288,17 +291,20 @@ function rs8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
 	return reinterpret(Int8, ru8(cpu, mem, seg, offset))
 end
 
-# CPU functions
-function fetch_op_byte(cpu:: CPU, mem:: PhysicalMemory)
-	if (cpu.address_size == 16)
-		return ru8(cpu, mem, CS, UInt64(@ip(cpu)))
-	end
-	return 0
-end
+# Execution engine
 
+require("Instructions.jl")
+
+# CPU functions
 function loop(cpu:: CPU, mem:: PhysicalMemory)
+	local b:: UInt8
 	while true
-		println(hex(fetch_op_byte(cpu, mem)))
+		println(hex(@sreg(cpu, CS)))
+		println(hex(@sreg_base(cpu, CS)))
+		println(hex(@eip(cpu)))
+		b = fetch8_advance_ip(cpu, mem)
+		println(hex(b))
+		cpu.emu_insn_tbl[b](cpu, mem)
 	end
 end
 
