@@ -313,6 +313,7 @@ function loop(cpu:: CPU, mem:: PhysicalMemory)
 		println(hex(@sreg_base(cpu, CS)))
 		println(hex(@eip(cpu)))
 		
+
 		if cpu.jit_enabled
 			f = find_jl_block(cpu, mem)
 			f(cpu, mem)
