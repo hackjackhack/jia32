@@ -39,7 +39,7 @@ function dummy9(cpu:: CPU)
 end
 
 mem = PhysicalMemory(UInt64(4096*1024))
-cpu = CPU()
+cpu = CPU(UInt64(4096*1024))
 reset(cpu)
 
 println(macroexpand(:@reg_w32!(cpu, RCX, @reg_r32(cpu, RAX))))
@@ -63,7 +63,7 @@ println()
 println()
 @code_native(dummy9(cpu))
 println()
-@code_native(logical_to_linear(cpu, 0, UInt64(0x1234)))
+@code_native(logical_to_physical(cpu, 0, UInt64(0x1234)))
 println()
 @code_native(ru64(cpu, mem, 0, UInt64(0x1234)))
 println()

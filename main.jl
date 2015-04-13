@@ -27,9 +27,10 @@ function main()
 	if !(8 <= parsed_args["m"] <= 65536)
 		error("Memory size must be between 8 and 65536")
 	end
-	cpu = CPU()
+	memsize <<= 20
+	cpu = CPU(memsize)
 	init(cpu)
-	physmem = PhysicalMemory(memsize * 1024 * 1024)
+	physmem = PhysicalMemory(memsize)
 
 	# Mapping EPROM
 	# Volume 3, Chapter 9.10 : The EPROM is mapped at top 4G

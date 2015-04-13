@@ -65,10 +65,16 @@ type CPU
 	decoding_eip:: UInt32
 	decoding_ip:: UInt16
 
-	emu_insn_tbl:: Array{Function}
+	emu_insn_tbl:: Dict{UInt32, Function}
+	jit_insn_tbl:: Dict{UInt32, Function}
+
+	jit_enabled:: Bool
+	jit_rip:: UInt64
+	jit_eot:: Bool
+	jl_blocks:: Dict{UInt64, Dict{UInt64, Function}}
 
 	# Constructor
-	function CPU()
+	function CPU(phys_mem_size:: UInt64)
 		cpu = new()
 
 		# 16 64-bit general-purpose registers and instruction pointer
@@ -83,7 +89,11 @@ type CPU
 
 		cpu.operand_size = 16
 		cpu.address_size = 16
-		cpu.emu_insn_tbl = Array(Function, 1024)
+		cpu.emu_insn_tbl = Dict{UInt32, Function}()
+		cpu.jit_insn_tbl = Dict{UInt32, Function}()
+
+		cpu.jit_enabled = true
+		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, Function}}()
 
 		return cpu
 	end
@@ -185,14 +195,14 @@ macro sreg_base(cpu, seq)
 end
 
 # MMU functions
-
-@noinline function logical_to_linear_real_mode(cpu:: CPU, seg:: Int, offset:: UInt16)
+# Vol. 1, Chapter 3.3.1 & Fig. 3-3
+@noinline function logical_to_physical_real_mode(cpu:: CPU, seg:: Int, offset:: UInt16)
 	return UInt64((@sreg_base(cpu, seg) & 0xffffffff) + offset)
 end
 
-@noinline function logical_to_linear(cpu:: CPU, seg:: Int, offset:: UInt64)
+@noinline function logical_to_physical(cpu:: CPU, seg:: Int, offset:: UInt64)
 	if true # Condition to fetch instruction in real mode
-		return UInt64(logical_to_linear_real_mode(cpu, seg, UInt16(offset & 0xffff)))
+		return UInt64(logical_to_physical_real_mode(cpu, seg, UInt16(offset & 0xffff)))
 	end
 end
 
@@ -200,13 +210,13 @@ end
 function ru64_crosspg(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
 	ret = UInt64(0)
 	for i = 0 : 7
-		ret += (UInt64(phys_read_u8(mem, logical_to_linear(cpu, seg, offset + i))) << (i << 3))
+		ret += (UInt64(phys_read_u8(mem, logical_to_physical(cpu, seg, offset + i))) << (i << 3))
 	end
 	return ret
 end
 
 @noinline function ru64_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
-	phys_addr = logical_to_linear(cpu, seg, offset)
+	phys_addr = logical_to_physical(cpu, seg, offset)
 	return phys_read_u64(mem, phys_addr)
 end
 
@@ -229,13 +239,13 @@ end
 function ru32_crosspg(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
 	ret = UInt32(0)
 	for i = 0 : 3
-		ret += (UInt32(phys_read_u8(mem, logical_to_linear(cpu, seg, offset + i))) << (i << 3))
+		ret += (UInt32(phys_read_u8(mem, logical_to_physical(cpu, seg, offset + i))) << (i << 3))
 	end
 	return ret
 end
 
 @noinline function ru32_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
-	phys_addr = logical_to_linear(cpu, seg, offset)
+	phys_addr = logical_to_physical(cpu, seg, offset)
 	return phys_read_u32(mem, phys_addr)
 end
 
@@ -258,13 +268,13 @@ end
 function ru16_crosspg(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
 	ret = UInt16(0)
 	for i = 0 : 1
-		ret += (UInt16(phys_read_u8(mem, logical_to_linear(cpu, seg, offset + i))) << (i << 3))
+		ret += (UInt16(phys_read_u8(mem, logical_to_physical(cpu, seg, offset + i))) << (i << 3))
 	end
 	return ret
 end
 
 @noinline function ru16_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
-	phys_addr = logical_to_linear(cpu, seg, offset)
+	phys_addr = logical_to_physical(cpu, seg, offset)
 	return phys_read_u16(mem, phys_addr)
 end
 
@@ -284,7 +294,7 @@ end
 
 #-----8-----
 function ru8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
-	phys_addr = logical_to_linear(cpu, seg, offset)
+	phys_addr = logical_to_physical(cpu, seg, offset)
 	return phys_read_u8(mem, phys_addr)
 end
 function rs8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
@@ -302,9 +312,15 @@ function loop(cpu:: CPU, mem:: PhysicalMemory)
 		println(hex(@sreg(cpu, CS)))
 		println(hex(@sreg_base(cpu, CS)))
 		println(hex(@eip(cpu)))
-		b = fetch8_advance_ip(cpu, mem)
-		println(hex(b))
-		cpu.emu_insn_tbl[b](cpu, mem)
+		
+		if cpu.jit_enabled
+			f = find_jl_block(cpu, mem)
+			f(cpu, mem)
+		else
+			b = emu_fetch8_advance(cpu, mem)
+			println(hex(b))
+			cpu.emu_insn_tbl[b](cpu, mem)
+		end
 	end
 end
 
