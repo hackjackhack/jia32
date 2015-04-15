@@ -1,10 +1,4 @@
-include("instr/0xea.jl")
-
-function init(cpu:: CPU)
-	cpu.emu_insn_tbl[0xea] = emu_0xea
-	cpu.jit_insn_tbl[0xea] = jit_0xea
-
-end
+include("instr/opc_list.jl")
 
 function gen_jl_block(cpu:: CPU, mem:: PhysicalMemory)
 	jl_expr = quote end
@@ -19,7 +13,6 @@ function gen_jl_block(cpu:: CPU, mem:: PhysicalMemory)
 	end
 
 	@eval f(cpu:: CPU, mem:: PhysicalMemory) = $jl_expr
-	@code_native(f(cpu, mem))
 	return f
 end
 
@@ -32,6 +25,7 @@ function find_jl_block(cpu:: CPU, mem:: PhysicalMemory)
 	# Find the associative map. Create one if not found.
 	phys_ip = logical_to_physical(cpu, CS, UInt64(@ip(cpu)))
 	phys_page = phys_ip >> 12
+
 	if !haskey(cpu.jl_blocks, phys_page)
 		cpu.jl_blocks[phys_page] = Dict{UInt64, Function}()
 	end

@@ -29,7 +29,7 @@ function main()
 	end
 	memsize <<= 20
 	cpu = CPU(memsize)
-	init(cpu)
+	load_opcode(cpu)
 	physmem = PhysicalMemory(memsize)
 
 	# Mapping EPROM
