@@ -47,6 +47,15 @@ const SS = 3
 const FS = 4
 const GS = 5
 
+const OP_ADD = 0
+const OP_ADC = 1
+const OP_AND = 2
+const OP_XOR = 3
+const OP_OR  = 4
+const OP_SBB = 5
+const OP_SUB = 6
+const OP_CMP = 7
+
 type CPU
 	genl_regs_buffer:: Array{UInt8}
 	genl_regs:: Ptr{UInt8}
@@ -68,8 +77,16 @@ type CPU
 	emu_insn_tbl:: Dict{UInt32, Function}
 	jit_insn_tbl:: Dict{UInt32, Function}
 
+	lazyf_op:: Int
+	lazyf_width:: Int
+	lazyf_op1:: UInt64
+	lazyf_op2:: UInt64
+
+	segment:: Int
+	single_stepping:: Bool
 	jit_enabled:: Bool
 	jit_rip:: UInt64
+	jit_ip_addend:: UInt8
 	jit_eot:: Bool
 	jl_blocks:: Dict{UInt64, Dict{UInt64, Function}}
 
@@ -87,11 +104,13 @@ type CPU
 		cpu.seg_regs_base_buffer = Array(UInt64, 6)
 		cpu.seg_regs_base = pointer(cpu.seg_regs_base_buffer)
 
+		cpu.segment = -1
 		cpu.operand_size = 16
 		cpu.address_size = 16
 		cpu.emu_insn_tbl = Dict{UInt32, Function}()
 		cpu.jit_insn_tbl = Dict{UInt32, Function}()
 
+		cpu.single_stepping = true
 		cpu.jit_enabled = true
 		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, Function}}()
 
@@ -301,6 +320,100 @@ function rs8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
 	return reinterpret(Int8, ru8(cpu, mem, seg, offset))
 end
 
+# -----64-----
+function wu64_crosspg(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt64)
+	for i = 0 : 7
+		byte = UInt8((data >> i) & 0xff)
+		phys_write_u8(mem, logical_to_physical(cpu, seg, offset + i), byte)
+	end
+end
+
+@noinline function wu64_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data::UInt64)
+	phys_addr = logical_to_physical(cpu, seg, offset)
+	return phys_write_u64(mem, phys_addr, data)
+end
+
+function wu64(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt64)
+	#if ((offset + 7) $ offset) & (~UInt64(0xfff)) == 0
+	if (offset & (UInt64(0xfff))) < 4089
+		# In the same page
+		return wu64_fast(cpu, mem, seg, offset, data)
+	else
+		# Cross-page access
+		return wu64_crosspg(cpu, mem, seg, offset, data)
+	end
+end
+
+@inline function ws64(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: Int64)
+	wu64(cpu, mem, seg, offset, reinterpret(UInt64, data))
+end
+
+# -----32-----
+function wu32_crosspg(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt32)
+	for i = 0 : 3
+		byte = UInt8((data >> i) & 0xff)
+		phys_write_u8(mem, logical_to_physical(cpu, seg, offset + i), byte)
+	end
+end
+
+@noinline function wu32_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data::UInt32)
+	phys_addr = logical_to_physical(cpu, seg, offset)
+	return phys_write_u32(mem, phys_addr, data)
+end
+
+function wu32(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt32)
+	#if ((offset + 7) $ offset) & (~UInt64(0xfff)) == 0
+	if (offset & (UInt64(0xfff))) < 4093
+		# In the same page
+		return wu32_fast(cpu, mem, seg, offset, data)
+	else
+		# Cross-page access
+		return wu32_crosspg(cpu, mem, seg, offset, data)
+	end
+end
+
+@inline function ws32(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: Int32)
+	wu32(cpu, mem, seg, offset, reinterpret(UInt32, data))
+end
+
+# -----16-----
+function wu16_crosspg(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt16)
+	for i = 0 : 1
+		byte = UInt8((data >> i) & 0xff)
+		phys_write_u8(mem, logical_to_physical(cpu, seg, offset + i), byte)
+	end
+end
+
+@noinline function wu16_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data::UInt16)
+	phys_addr = logical_to_physical(cpu, seg, offset)
+	return phys_write_u16(mem, phys_addr, data)
+end
+
+function wu16(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt16)
+	#if ((offset + 7) $ offset) & (~UInt64(0xfff)) == 0
+	if (offset & (UInt64(0xfff))) < 4095
+		# In the same page
+		return wu16_fast(cpu, mem, seg, offset, data)
+	else
+		# Cross-page access
+		return wu16_crosspg(cpu, mem, seg, offset, data)
+	end
+end
+
+@inline function ws16(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: Int16)
+	wu16(cpu, mem, seg, offset, reinterpret(UInt16, data))
+end
+
+#-----8-----
+function wu8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt8)
+	phys_addr = logical_to_physical(cpu, seg, offset)
+	return phys_write_u8(mem, phys_addr, data)
+end
+
+function ws8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: Int8)
+	wu8(cpu, mem, seg, offset, reinterpret(UInt8, data))
+end
+
 # Execution engine
 
 require("Instructions.jl")
@@ -313,10 +426,12 @@ function loop(cpu:: CPU, mem:: PhysicalMemory)
 		println(hex(@sreg_base(cpu, CS)))
 		println(hex(@eip(cpu)))
 		
-
+		dump(cpu)
+		cpu.segment = -1;
 		if cpu.jit_enabled
 			f = find_jl_block(cpu, mem)
 			f(cpu, mem)
+			@code_native(f(cpu,mem))
 		else
 			b = emu_fetch8_advance(cpu, mem)
 			println(hex(b))
@@ -340,4 +455,15 @@ function reset(cpu:: CPU)
 	@reg_w_named!(cpu, RSP, 0)
 end
 
-
+function dump(cpu:: CPU)
+	println("rax: $(hex(@reg_r_named(cpu, RAX)))")
+	println("rcx: $(hex(@reg_r_named(cpu, RCX)))")
+	println("rdx: $(hex(@reg_r_named(cpu, RDX)))")
+	println("rbx: $(hex(@reg_r_named(cpu, RBX)))")
+	println("rsp: $(hex(@reg_r_named(cpu, RSP)))")
+	println("rbp: $(hex(@reg_r_named(cpu, RBP)))")
+	println("rsi: $(hex(@reg_r_named(cpu, RSI)))")
+	println("rdi: $(hex(@reg_r_named(cpu, RDI)))")
+	println("")
+	println("rip: $(hex(@rip(cpu)))")
+end
