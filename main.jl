@@ -51,6 +51,10 @@ function main()
 		eprom_w64, eprom_w32, eprom_w16, eprom_w8
 	)
 
+	# Port I/O: I8257 DMA Controller
+	i8257 = I8257(0)
+	register_port_io_map(cpu, UInt64(0), i8257)
+
 	reset(cpu)
 	loop(cpu, physmem)
 #=

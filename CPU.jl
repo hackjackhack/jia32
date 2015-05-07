@@ -1,4 +1,5 @@
 include("PhysicalMemory.jl")
+include("hw/IODev.jl")
 
 const RAX_type = UInt64; const RAX_seq = 0; 
 const EAX_type = UInt32; const EAX_seq = 0;
@@ -90,6 +91,19 @@ type CPU
 	jit_eot:: Bool
 	jl_blocks:: Dict{UInt64, Dict{UInt64, Function}}
 
+	#= Port I/O system
+	   For devices that are accessed through a separated I/O port space.
+	   Instruction in, out, ins, outs access through this system.
+	   No 64-bit access =#
+	port_iomap:: Array{Bool}
+	port_iomap_dev:: Array{IODev}
+	port_iomap_r32:: Array{Function}
+	port_iomap_r16:: Array{Function}
+	port_iomap_r8:: Array{Function}
+	port_iomap_w32:: Array{Function}
+	port_iomap_w16:: Array{Function}
+	port_iomap_w8:: Array{Function}
+ 
 	# Constructor
 	function CPU(phys_mem_size:: UInt64)
 		cpu = new()
@@ -113,6 +127,16 @@ type CPU
 		cpu.single_stepping = true
 		cpu.jit_enabled = true
 		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, Function}}()
+
+		cpu.port_iomap = Array(Bool, 1 << 16)
+		cpu.port_iomap_dev = Array(IODev, 1 << 16)
+		cpu.port_iomap_r32 = Array(Function, 1 << 16)
+		cpu.port_iomap_r16 = Array(Function, 1 << 16)
+		cpu.port_iomap_r8  = Array(Function, 1 << 16)
+		cpu.port_iomap_w32 = Array(Function, 1 << 16)
+		cpu.port_iomap_w16 = Array(Function, 1 << 16)
+		cpu.port_iomap_w8  = Array(Function, 1 << 16)
+		fill!(cpu.port_iomap, false)
 
 		return cpu
 	end
@@ -412,6 +436,97 @@ end
 
 function ws8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: Int8)
 	wu8(cpu, mem, seg, offset, reinterpret(UInt8, data))
+end
+
+# Port I/O system
+function register_port_io_map(cpu:: CPU, start:: UInt64, device:: IODev)
+	device.portbase = start
+	for port in keys(device.portlist_r32)
+		i = start + port + 1
+		cpu.port_iomap[i] = true
+		cpu.port_iomap_dev[i] = device
+		cpu.port_iomap_r32[i] = device.portlist_r32[port] 
+	end
+
+	for port in keys(device.portlist_r16)
+		i = start + port + 1
+		cpu.port_iomap[i] = true
+		cpu.port_iomap_dev[i] = device
+		cpu.port_iomap_r16[i] = device.portlist_r16[port] 
+	end
+
+	for port in keys(device.portlist_r8)
+		i = start + port + 1
+		cpu.port_iomap[i] = true
+		cpu.port_iomap_dev[i] = device
+		cpu.port_iomap_r8[i] = device.portlist_r8[port] 
+	end
+
+	for port in keys(device.portlist_w32)
+		i = start + port + 1
+		cpu.port_iomap[i] = true
+		cpu.port_iomap_dev[i] = device
+		cpu.port_iomap_w32[i] = device.portlist_w32[port] 
+	end
+
+	for port in keys(device.portlist_w16)
+		i = start + port + 1
+		cpu.port_iomap[i] = true
+		cpu.port_iomap_dev[i] = device
+		cpu.port_iomap_w16[i] = device.portlist_w16[port] 
+	end
+
+	for port in keys(device.portlist_w8)
+		i = start + port + 1
+		cpu.port_iomap[i] = true
+		cpu.port_iomap_dev[i] = device
+		cpu.port_iomap_w8[i] = device.portlist_w8[port] 
+	end
+end
+
+@noinline function port_io_r32(cpu:: CPU, addr:: UInt64)
+	if !cpu.port_iomap[addr + 1]
+		println("r32 : Unregistered I/O port $addr") 
+		return UInt32(0)
+	end
+	return cpu.port_iomap_r32[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
+end
+
+@noinline function port_io_r16(cpu:: CPU, addr:: UInt64)
+	if !cpu.port_iomap[addr + 1]
+		println("r16 : Unregistered I/O port $addr") 
+		return UInt16(0)
+	end
+	return cpu.port_iomap_r16[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
+end
+
+@noinline function port_io_r8(cpu:: CPU, addr:: UInt64)
+	if !cpu.port_iomap[addr + 1]
+		println("r8 : Unregistered I/O port $addr") 
+		return UInt8(0)
+	end
+	return cpu.port_iomap_r8[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
+end
+
+@noinline function port_io_w32(cpu:: CPU, addr:: UInt64, data:: UInt32)
+	if !cpu.port_iomap[addr + 1]
+		println("w32 : Unregistered I/O port $addr") 
+	end
+	cpu.port_iomap_w32[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
+end
+
+@noinline function port_io_w16(cpu:: CPU, addr:: UInt64, data:: UInt16)
+	if !cpu.port_iomap[addr + 1]
+		println("w16 : Unregistered I/O port $addr") 
+	end
+	cpu.port_iomap_w16[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
+end
+
+@noinline function port_io_w8(cpu:: CPU, addr:: UInt64, data:: UInt8)
+	if !cpu.port_iomap[addr + 1]
+		println("w8 : Unregistered I/O port $addr") 
+	end
+	cpu.port_iomap_w8[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
 end
 
 # Execution engine

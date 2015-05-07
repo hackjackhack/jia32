@@ -1,6 +1,6 @@
-include("MMIO.jl")
+include("IODev.jl")
 
-type EPROM <: MMIO
+type EPROM <: IODev
 	base:: UInt64
 	imgpath:: UTF8String 
 	imgbuf:: Array{UInt8}
