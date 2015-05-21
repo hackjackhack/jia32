@@ -57,6 +57,8 @@ const OP_SBB = 5
 const OP_SUB = 6
 const OP_CMP = 7
 
+IOFunc = Union(Bool, Function)
+
 type CPU
 	genl_regs_buffer:: Array{UInt8}
 	genl_regs:: Ptr{UInt8}
@@ -95,14 +97,14 @@ type CPU
 	   For devices that are accessed through a separated I/O port space.
 	   Instruction in, out, ins, outs access through this system.
 	   No 64-bit access =#
-	port_iomap:: Array{Bool}
+	#port_iomap:: Array{Bool}
 	port_iomap_dev:: Array{IODev}
-	port_iomap_r32:: Array{Function}
-	port_iomap_r16:: Array{Function}
-	port_iomap_r8:: Array{Function}
-	port_iomap_w32:: Array{Function}
-	port_iomap_w16:: Array{Function}
-	port_iomap_w8:: Array{Function}
+	port_iomap_r32:: Array{IOFunc}
+	port_iomap_r16:: Array{IOFunc}
+	port_iomap_r8::  Array{IOFunc}
+	port_iomap_w32:: Array{IOFunc}
+	port_iomap_w16:: Array{IOFunc}
+	port_iomap_w8::  Array{IOFunc}
  
 	# Constructor
 	function CPU(phys_mem_size:: UInt64)
@@ -128,15 +130,21 @@ type CPU
 		cpu.jit_enabled = true
 		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, Function}}()
 
-		cpu.port_iomap = Array(Bool, 1 << 16)
+		#cpu.port_iomap = Array(Bool, 1 << 16)
 		cpu.port_iomap_dev = Array(IODev, 1 << 16)
-		cpu.port_iomap_r32 = Array(Function, 1 << 16)
-		cpu.port_iomap_r16 = Array(Function, 1 << 16)
-		cpu.port_iomap_r8  = Array(Function, 1 << 16)
-		cpu.port_iomap_w32 = Array(Function, 1 << 16)
-		cpu.port_iomap_w16 = Array(Function, 1 << 16)
-		cpu.port_iomap_w8  = Array(Function, 1 << 16)
-		fill!(cpu.port_iomap, false)
+		cpu.port_iomap_r32 = Array(IOFunc, 1 << 16)
+		cpu.port_iomap_r16 = Array(IOFunc, 1 << 16)
+		cpu.port_iomap_r8  = Array(IOFunc, 1 << 16)
+		cpu.port_iomap_w32 = Array(IOFunc, 1 << 16)
+		cpu.port_iomap_w16 = Array(IOFunc, 1 << 16)
+		cpu.port_iomap_w8  = Array(IOFunc, 1 << 16)
+		fill!(cpu.port_iomap_r32, false)
+		fill!(cpu.port_iomap_r16, false)
+		fill!(cpu.port_iomap_r8,  false)
+		fill!(cpu.port_iomap_w32, false)
+		fill!(cpu.port_iomap_w16, false)
+		fill!(cpu.port_iomap_w8,  false)
+		#fill!(cpu.port_iomap, false)
 
 		return cpu
 	end
@@ -439,69 +447,74 @@ function ws8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data::
 end
 
 # Port I/O system
-function register_port_io_map(cpu:: CPU, start:: UInt64, device:: IODev)
-	device.portbase = start
+function register_port_io_map(cpu:: CPU, device:: IODev)
 	for port in keys(device.portlist_r32)
-		i = start + port + 1
-		cpu.port_iomap[i] = true
+		i = port + 1
+		#cpu.port_iomap[i] = true
 		cpu.port_iomap_dev[i] = device
 		cpu.port_iomap_r32[i] = device.portlist_r32[port] 
 	end
 
 	for port in keys(device.portlist_r16)
-		i = start + port + 1
-		cpu.port_iomap[i] = true
+		i = port + 1
+		#cpu.port_iomap[i] = true
 		cpu.port_iomap_dev[i] = device
 		cpu.port_iomap_r16[i] = device.portlist_r16[port] 
 	end
 
 	for port in keys(device.portlist_r8)
-		i = start + port + 1
-		cpu.port_iomap[i] = true
+		i = port + 1
+		#cpu.port_iomap[i] = true
 		cpu.port_iomap_dev[i] = device
 		cpu.port_iomap_r8[i] = device.portlist_r8[port] 
 	end
 
 	for port in keys(device.portlist_w32)
-		i = start + port + 1
-		cpu.port_iomap[i] = true
+		i = port + 1
+		#cpu.port_iomap[i] = true
 		cpu.port_iomap_dev[i] = device
 		cpu.port_iomap_w32[i] = device.portlist_w32[port] 
 	end
 
 	for port in keys(device.portlist_w16)
-		i = start + port + 1
-		cpu.port_iomap[i] = true
+		i = port + 1
+		#cpu.port_iomap[i] = true
 		cpu.port_iomap_dev[i] = device
 		cpu.port_iomap_w16[i] = device.portlist_w16[port] 
 	end
 
 	for port in keys(device.portlist_w8)
-		i = start + port + 1
-		cpu.port_iomap[i] = true
+		i = port + 1
+		#cpu.port_iomap[i] = true
 		cpu.port_iomap_dev[i] = device
 		cpu.port_iomap_w8[i] = device.portlist_w8[port] 
 	end
 end
 
 @noinline function port_io_r32(cpu:: CPU, addr:: UInt64)
-	if !cpu.port_iomap[addr + 1]
-		println("r32 : Unregistered I/O port $addr") 
-		return UInt32(0)
+	if cpu.port_iomap_r32[addr + 1] == false
+		println("I/O port $addr has no 32-bit read IO function. Trying to fall back to 8-bit read.") 
+		return port_io_r8(cpu, addr) | 
+			(UInt32(port_io_r8(cpu, addr + 1)) << 8) |
+			(UInt32(port_io_r8(cpu, addr + 2)) << 16) |
+			(UInt32(port_io_r8(cpu, addr + 3)) << 24)
+	else
+		return cpu.port_iomap_r32[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
 	end
-	return cpu.port_iomap_r32[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
 end
 
 @noinline function port_io_r16(cpu:: CPU, addr:: UInt64)
-	if !cpu.port_iomap[addr + 1]
-		println("r16 : Unregistered I/O port $addr") 
-		return UInt16(0)
+	if cpu.port_iomap_r16[addr + 1] == false
+		println("I/O port $addr has no 16-bit read IO function. Trying to fall back to 8-bit read.") 
+		return port_io_r8(cpu, addr) | 
+			(UInt32(port_io_r8(cpu, addr + 1)) << 8)
+	else
+		return cpu.port_iomap_r16[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
 	end
-	return cpu.port_iomap_r16[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
 end
 
 @noinline function port_io_r8(cpu:: CPU, addr:: UInt64)
-	if !cpu.port_iomap[addr + 1]
+	if cpu.port_iomap_r8[addr + 1] == false
 		println("r8 : Unregistered I/O port $addr") 
 		return UInt8(0)
 	end
@@ -509,22 +522,31 @@ end
 end
 
 @noinline function port_io_w32(cpu:: CPU, addr:: UInt64, data:: UInt32)
-	if !cpu.port_iomap[addr + 1]
-		println("w32 : Unregistered I/O port $addr") 
+	if cpu.port_iomap_w32[addr + 1] == false
+		println("I/O port $addr has no 32-bit write IO function. Trying to fall back to 8-bit write.")
+		port_io_w8(UInt8(data & 0xff), addr)
+		port_io_w8(UInt8((data & 0xff00) >>> 8 ), addr + 1)
+		port_io_w8(UInt8((data & 0xff0000) >>> 16 ), addr + 2)
+		port_io_w8(UInt8((data & 0xff000000) >>> 24 ), addr + 3)
+	else
+		cpu.port_iomap_w32[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
 	end
-	cpu.port_iomap_w32[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
 end
 
 @noinline function port_io_w16(cpu:: CPU, addr:: UInt64, data:: UInt16)
-	if !cpu.port_iomap[addr + 1]
-		println("w16 : Unregistered I/O port $addr") 
+	if cpu.port_iomap_w16[addr + 1] == false
+		println("I/O port $addr has no 16-bit write IO function. Trying to fall back to 8-bit write.")
+		port_io_w8(UInt8(data & 0xff), addr)
+		port_io_w8(UInt8((data & 0xff00) >>> 8 ), addr + 1)
+	else
+		cpu.port_iomap_w16[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
 	end
-	cpu.port_iomap_w16[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
 end
 
 @noinline function port_io_w8(cpu:: CPU, addr:: UInt64, data:: UInt8)
-	if !cpu.port_iomap[addr + 1]
-		println("w8 : Unregistered I/O port $addr") 
+	if cpu.port_iomap_w8[addr + 1] == false
+		println("w8 : Unregistered I/O port $addr")
+		return
 	end
 	cpu.port_iomap_w8[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
 end
@@ -537,6 +559,7 @@ require("Instructions.jl")
 function loop(cpu:: CPU, mem:: PhysicalMemory)
 	local b:: UInt8
 	while true
+		println("----- Cycle Start -----")
 		println(hex(@sreg(cpu, CS)))
 		println(hex(@sreg_base(cpu, CS)))
 		println(hex(@eip(cpu)))
@@ -552,6 +575,7 @@ function loop(cpu:: CPU, mem:: PhysicalMemory)
 			println(hex(b))
 			cpu.emu_insn_tbl[b](cpu, mem)
 		end
+		println("----- Cycle End -----")
 	end
 end
 

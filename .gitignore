@@ -1,3 +1,4 @@
 julia
 instr/*.jl
 instr/opc_list.jl
+hw/hw_qemu/hw_qemu.so
