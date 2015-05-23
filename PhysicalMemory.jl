@@ -1,11 +1,15 @@
-include("hw/MMIO.jl")
+include("hw/IODev.jl")
 
 type PhysicalMemory
 	size:: UInt64
 	array:: Array{UInt8}
 	baseptr:: Ptr{UInt8}
+
+	#= Memory-mapped I/O : devices that can be
+	   accessed through the processor’s physical-memory address space.
+	   See Vol.1 16.3.1 =#
 	iomap:: Array{Bool}
-	iomap_dev:: Array{MMIO}
+	iomap_dev:: Array{IODev}
 	iomap_r64:: Array{Function}
 	iomap_r32:: Array{Function}
 	iomap_r16:: Array{Function}
@@ -23,7 +27,7 @@ type PhysicalMemory
 			Array(UInt8, size + 4096),
 			0,
 			Array(Bool, 1 << 20),
-			Array(MMIO, 1 << 20),
+			Array(IODev, 1 << 20),
 			Array(Function, 1 << 20),
 			Array(Function, 1 << 20),
 			Array(Function, 1 << 20),
@@ -44,7 +48,7 @@ end
 
 function register_phys_io_map(
 	memory:: PhysicalMemory, start:: UInt64, size:: UInt64,
-	device:: MMIO,
+	device:: IODev,
 	f_r64:: Function, f_r32:: Function, f_r16:: Function, f_r8:: Function,
 	f_w64:: Function, f_w32:: Function, f_w16:: Function, f_w8:: Function)
 

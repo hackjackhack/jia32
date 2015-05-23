@@ -8,8 +8,8 @@ function gen_jl_block(cpu:: CPU, mem:: PhysicalMemory)
 
 	while true
 		b = jit_fetch8_advance(cpu, mem)
+	
 		l = cpu.jit_insn_tbl[b](cpu, mem)
-		
 		push!(jl_expr.args, l)
 
 		# If it is not a branch instruction, generate code for IP update
