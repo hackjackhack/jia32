@@ -555,5 +555,9 @@ struct dma_cont* DMA_c_init(int dshift)
         d->regs[i].transfer_handler = dma_phony_handler;
     }
 
+    // Register bottom-half callback routine when both controllers are created.
+    if (nb_used_dma_cont == ARRAY_SIZE(dma_controllers))
+    	dma_bh = qemu_bh_new(DMA_run_bh, NULL);
+
     return d;
 }
