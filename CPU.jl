@@ -493,7 +493,7 @@ end
 
 @noinline function port_io_r32(cpu:: CPU, addr:: UInt64)
 	if cpu.port_iomap_r32[addr + 1] == false
-		println("I/O port $addr has no 32-bit read IO function. Trying to fall back to 8-bit read.") 
+		println("I/O port $(hex(addr)) has no 32-bit read IO function. Trying to fall back to 8-bit read.") 
 		return port_io_r8(cpu, addr) | 
 			(UInt32(port_io_r8(cpu, addr + 1)) << 8) |
 			(UInt32(port_io_r8(cpu, addr + 2)) << 16) |
@@ -505,7 +505,7 @@ end
 
 @noinline function port_io_r16(cpu:: CPU, addr:: UInt64)
 	if cpu.port_iomap_r16[addr + 1] == false
-		println("I/O port $addr has no 16-bit read IO function. Trying to fall back to 8-bit read.") 
+		println("I/O port 0x$(hex(addr)) has no 16-bit read IO function. Trying to fall back to 8-bit read.") 
 		return port_io_r8(cpu, addr) | 
 			(UInt32(port_io_r8(cpu, addr + 1)) << 8)
 	else
@@ -515,7 +515,7 @@ end
 
 @noinline function port_io_r8(cpu:: CPU, addr:: UInt64)
 	if cpu.port_iomap_r8[addr + 1] == false
-		println("r8 : Unregistered I/O port $addr") 
+		println("r8 : Unregistered I/O port 0x$(hex(addr))") 
 		return UInt8(0)
 	end
 	return cpu.port_iomap_r8[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
@@ -523,7 +523,7 @@ end
 
 @noinline function port_io_w32(cpu:: CPU, addr:: UInt64, data:: UInt32)
 	if cpu.port_iomap_w32[addr + 1] == false
-		println("I/O port $addr has no 32-bit write IO function. Trying to fall back to 8-bit write.")
+		println("I/O port 0x$(hex(addr)) has no 32-bit write IO function. Trying to fall back to 8-bit write.")
 		port_io_w8(UInt8(data & 0xff), addr)
 		port_io_w8(UInt8((data & 0xff00) >>> 8 ), addr + 1)
 		port_io_w8(UInt8((data & 0xff0000) >>> 16 ), addr + 2)
@@ -535,7 +535,7 @@ end
 
 @noinline function port_io_w16(cpu:: CPU, addr:: UInt64, data:: UInt16)
 	if cpu.port_iomap_w16[addr + 1] == false
-		println("I/O port $addr has no 16-bit write IO function. Trying to fall back to 8-bit write.")
+		println("I/O port 0x$(hex(addr)) has no 16-bit write IO function. Trying to fall back to 8-bit write.")
 		port_io_w8(UInt8(data & 0xff), addr)
 		port_io_w8(UInt8((data & 0xff00) >>> 8 ), addr + 1)
 	else
@@ -545,7 +545,7 @@ end
 
 @noinline function port_io_w8(cpu:: CPU, addr:: UInt64, data:: UInt8)
 	if cpu.port_iomap_w8[addr + 1] == false
-		println("w8 : Unregistered I/O port $addr")
+		println("w8 : Unregistered I/O port 0x$(hex(addr))")
 		return
 	end
 	cpu.port_iomap_w8[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)

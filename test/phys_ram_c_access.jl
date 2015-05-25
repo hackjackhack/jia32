@@ -1,23 +1,4 @@
-include("JIA32.jl")
-
-using ArgParse
-
-function parse_options()
-	s = ArgParseSettings()
-
-	@add_arg_table s begin
-		"-m"
-			help = "memory size of the virtual machine (MB)"
-			arg_type = UInt64
-			default = UInt64(16)
-		"-b"
-			help = "BIOS image file path"
-			arg_type = UTF8String
-			default = UTF8String("images/bios.bin")
-	end
-
-	return parse_args(s)
-end
+include("../JIA32.jl")
 
 function init_c_world(mem:: PhysicalMemory)
 	global g_phys_mem = mem
@@ -33,14 +14,10 @@ function init_c_world(mem:: PhysicalMemory)
 end
 
 function main()
-	parsed_args = parse_options()
-
 	# Create VM physical memory 
-	memsize = parsed_args["m"]
-	if !(8 <= parsed_args["m"] <= 65536)
-		error("Memory size must be between 8 and 65536")
-	end
+	memsize:: UInt64 = 16
 	memsize <<= 20
+
 	cpu = CPU(memsize)
 	load_opcode(cpu)
 	physmem = PhysicalMemory(memsize)
@@ -72,8 +49,13 @@ function main()
 	i8257_2 = I8257(UInt64(0xc0), 1, UInt64(0x88), -1)
 	register_port_io_map(cpu, i8257_2)
 
-	reset(cpu)
-	loop(cpu, physmem)
+	r = ccall(("phys_ram_c_access_test", "./hw/hw_qemu/hw_qemu.so"), Cint, ())
+	println(r)
+	if (r < 0)
+		error("phys_ram_c_access_test() failed")
+	else
+		println("OK")
+	end
 end
 
 main()

@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Memory management functions
+void qemu_free(void *ptr);
+void *qemu_malloc(size_t size);
+void *qemu_realloc(void *ptr, size_t size);
+void *qemu_mallocz(size_t size);
+
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
@@ -20,6 +26,7 @@
 #define CPU_INTERRUPT_DEBUG  0x80 /* Debug event occured.  */
 #define CPU_INTERRUPT_VIRQ   0x100 /* virtual interrupt pending.  */
 #define CPU_INTERRUPT_NMI    0x200 /* NMI pending. */
+
 
 typedef uint64_t target_phys_addr_t ;
 
