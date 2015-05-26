@@ -2,7 +2,7 @@ include("../PhysicalMemory.jl")
 include("../hw/IODev.jl")
 
 type TestDev <: IODev
-	base:: UInt64
+	mmiobase:: UInt64
 	state:: Int
 end
 
