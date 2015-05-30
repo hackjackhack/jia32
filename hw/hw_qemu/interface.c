@@ -10,14 +10,31 @@ uint8_t *phys_ram_base;
 // Pointers to direct physical memory access function in Julia
 void (*j_phys_ram_to_buffer)(uint64_t addr, uint64_t len, uint8_t* buf);
 void (*j_buffer_to_phys_ram)(uint64_t addr, uint64_t len, const uint8_t* buf);
+void (*j_cpu_interrupt)(void* opaque, int irq, int level);
+int64_t (*j_new_timer)(void *cb, void *obj);
+void (*j_mod_timer)(int64_t key, uint64_t time_to_expire);
+void (*j_cancel_timer)(int64_t key);
+uint64_t (*j_get_clock)();
 
-void init_c_world(uint8_t* baseptr, 
-			void (*cb_phys_ram_to_buffer)(uint64_t, uint64_t, uint8_t*),
-			void (*cb_buffer_to_phys_ram)(uint64_t, uint64_t, const uint8_t*))
+void init_c_world(uint8_t* baseptr,
+		  void (*cb_phys_ram_to_buffer)(uint64_t, uint64_t, uint8_t*),
+		  void (*cb_buffer_to_phys_ram)(uint64_t, uint64_t, const uint8_t*),
+		  void (*cb_interrupt)(void*, int, int),
+		  int64_t (*cb_new_timer)(void*, void*),
+		  void (*cb_mod_timer)(int64_t, uint64_t),
+		  void (*cb_cancel_timer)(int64_t),
+		  uint64_t (*cb_get_clock)()
+)
+
 {
 	phys_ram_base = baseptr;
 	j_phys_ram_to_buffer = cb_phys_ram_to_buffer;
 	j_buffer_to_phys_ram = cb_buffer_to_phys_ram;
+	j_cpu_interrupt = cb_interrupt;
+	j_new_timer = cb_new_timer;
+	j_mod_timer = cb_mod_timer;
+	j_cancel_timer = cb_cancel_timer;
+	j_get_clock = cb_get_clock;
 
 	fprintf(stderr, "phys_ram_base = %p\n", phys_ram_base);
 }

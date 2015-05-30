@@ -6,11 +6,13 @@ function gen_jl_block(cpu:: CPU, mem:: PhysicalMemory)
 	cpu.jit_eot = false
 	cpu.jit_ip_addend = 0
 
+	nb_instr::UInt64 = 0
 	while true
 		b = jit_fetch8_advance(cpu, mem)
 	
 		l = cpu.jit_insn_tbl[b](cpu, mem)
 		push!(jl_expr.args, l)
+		nb_instr += 1
 
 		# If it is not a branch instruction, generate code for IP update
 		if !cpu.jit_eot
@@ -24,7 +26,7 @@ function gen_jl_block(cpu:: CPU, mem:: PhysicalMemory)
 	end
 
 	@eval f(cpu:: CPU, mem:: PhysicalMemory) = $jl_expr
-	return f
+	return JITBlock(f, nb_instr)
 end
 
 function find_jl_block(cpu:: CPU, mem:: PhysicalMemory)
@@ -38,7 +40,7 @@ function find_jl_block(cpu:: CPU, mem:: PhysicalMemory)
 	phys_page = phys_ip >> 12
 
 	if !haskey(cpu.jl_blocks, phys_page)
-		cpu.jl_blocks[phys_page] = Dict{UInt64, Function}()
+		cpu.jl_blocks[phys_page] = Dict{UInt64, JITBlock}()
 	end
 
 	# Search in the associative map. Translate if not found.
@@ -46,9 +48,9 @@ function find_jl_block(cpu:: CPU, mem:: PhysicalMemory)
 	if haskey(map, phys_ip)
 		return map[phys_ip]
 	else
-		f = gen_jl_block(cpu, mem)
-		map[phys_ip] = f
-		return f
+		b = gen_jl_block(cpu, mem)
+		map[phys_ip] = b
+		return b
 	end
 end
 

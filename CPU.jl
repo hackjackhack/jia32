@@ -60,6 +60,17 @@ const OP_CMP = 7
 
 IOFunc = Union(Bool, Function)
 
+type JITBlock
+	exec:: Function
+	nb_instr:: UInt64
+	nb_exec:: UInt64
+
+	function JITBlock(f:: Function, icount:: UInt64)
+		block = new(f, icount, 0)
+		return block
+	end
+end
+
 type CPU
 	genl_regs_buffer:: Array{UInt8}
 	genl_regs:: Ptr{UInt8}
@@ -92,7 +103,7 @@ type CPU
 	jit_rip:: UInt64
 	jit_ip_addend:: UInt8
 	jit_eot:: Bool
-	jl_blocks:: Dict{UInt64, Dict{UInt64, Function}}
+	jl_blocks:: Dict{UInt64, Dict{UInt64, JITBlock}}
 
 	#= Port I/O system
 	   For devices that are accessed through a separated I/O port space.
@@ -129,7 +140,7 @@ type CPU
 
 		cpu.single_stepping = true
 		cpu.jit_enabled = true
-		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, Function}}()
+		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, JITBlock}}()
 
 		#cpu.port_iomap = Array(Bool, 1 << 16)
 		cpu.port_iomap_dev = Array(IODev, 1 << 16)
@@ -145,7 +156,6 @@ type CPU
 		fill!(cpu.port_iomap_w32, false)
 		fill!(cpu.port_iomap_w16, false)
 		fill!(cpu.port_iomap_w8,  false)
-		#fill!(cpu.port_iomap, false)
 
 		return cpu
 	end
@@ -556,13 +566,16 @@ function loop(cpu:: CPU, mem:: PhysicalMemory)
 		dump(cpu)
 		cpu.segment = -1;
 		if cpu.jit_enabled
-			f = find_jl_block(cpu, mem)
-			f(cpu, mem)
-			@code_native(f(cpu,mem))
+			block = find_jl_block(cpu, mem)
+			block.nb_exec += 1
+			block.exec(cpu, mem)
+			update_clock(g_clock, block.nb_instr)
+			@code_native(block.exec(cpu,mem))
 		else
 			b = emu_fetch8_advance(cpu, mem)
 			println(hex(b))
 			cpu.emu_insn_tbl[b](cpu, mem)
+			update_clock(g_clock, UInt64(1))
 		end
 		println("----- Cycle End -----")
 	end
@@ -594,4 +607,22 @@ function dump(cpu:: CPU)
 	println("rdi: $(hex(@reg_r_named(cpu, RDI)))")
 	println("")
 	println("rip: $(hex(@rip(cpu)))")
+end
+
+function interrupt_for_c_hw(opaque:: Ptr{Void}, irq:: Cint, level:: Cint)
+	#= The first two arguments are useless.
+	   They exist to match the callback function signature in qemu_irq.
+
+	   TODO: APIC =#
+	if (level)
+		interrupt(g_cpu)
+	else
+		clear_interrupt(g_cpu)
+	end
+end
+
+function interrupt(cpu:: CPU)
+end
+
+function clear_interrupt(cpu:: CPU)
 end
