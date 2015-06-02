@@ -40,7 +40,7 @@ function init_c_world(mem:: PhysicalMemory)
 	const jf_get_clock =
 		cfunction(get_clock, Culonglong, ())
 
-	ccall(("init_c_world", "./hw/hw_qemu/hw_qemu.so"), 
+	ccall(("init_c_world", HW_LIB_PATH), 
 		Void,
 		(Ptr{UInt8}, Ptr{Void}, Ptr{Void}, Ptr{Void}, Ptr{Void}, Ptr{Void}, Ptr{Void}, Ptr{Void}),
 		mem.baseptr,

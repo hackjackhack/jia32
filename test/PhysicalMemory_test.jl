@@ -1,3 +1,4 @@
+include("../Common.jl")
 include("../PhysicalMemory.jl")
 include("../hw/IODev.jl")
 

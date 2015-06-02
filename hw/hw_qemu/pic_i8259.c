@@ -522,7 +522,7 @@ void irq_info(void)
 }
 */
 
-PicState2* I8259_c_init(void** pic0, void** pic1, void** irqs)
+PicState2* I8259_c_init(void** pic0, void** pic1)
 {
     PicState2 *s;
 
@@ -545,7 +545,6 @@ PicState2* I8259_c_init(void** pic0, void** pic1, void** irqs)
     //isa_pic = s;
 
     s->children_irqs = qemu_allocate_irqs(i8259_set_irq, s, 16);
-    *irqs = s->children_irqs;
     return s;
 }
 

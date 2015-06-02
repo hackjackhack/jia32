@@ -1,6 +1,5 @@
 include("PhysicalMemory.jl")
 include("hw/IODev.jl")
-include("Common.jl")
 
 const RAX_type = UInt64; const RAX_seq = 0; 
 const EAX_type = UInt32; const EAX_seq = 0;
@@ -493,22 +492,22 @@ end
 @noinline function port_io_r32(cpu:: CPU, addr:: UInt64)
 	if cpu.port_iomap_r32[@ZB(addr)] == false
 		println("I/O port $(hex(addr)) has no 32-bit read IO function. Trying to fall back to 8-bit read.") 
-		return port_io_r8(cpu, addr) | 
+		return UInt32(port_io_r8(cpu, addr)) | 
 			(UInt32(port_io_r8(cpu, addr + 1)) << 8) |
 			(UInt32(port_io_r8(cpu, addr + 2)) << 16) |
 			(UInt32(port_io_r8(cpu, addr + 3)) << 24)
 	else
-		return cpu.port_iomap_r32[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr)
+		return UInt32(cpu.port_iomap_r32[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr))
 	end
 end
 
 @noinline function port_io_r16(cpu:: CPU, addr:: UInt64)
 	if cpu.port_iomap_r16[@ZB(addr)] == false
 		println("I/O port 0x$(hex(addr)) has no 16-bit read IO function. Trying to fall back to 8-bit read.") 
-		return port_io_r8(cpu, addr) | 
-			(UInt32(port_io_r8(cpu, addr + 1)) << 8)
+		return UInt16(port_io_r8(cpu, addr)) | 
+			(UInt16(port_io_r8(cpu, addr + 1)) << 8)
 	else
-		return cpu.port_iomap_r16[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr)
+		return UInt16(cpu.port_iomap_r16[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr))
 	end
 end
 
@@ -517,7 +516,7 @@ end
 		println("r8 : Unregistered I/O port 0x$(hex(addr))") 
 		return UInt8(0)
 	end
-	return cpu.port_iomap_r8[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr)
+	return UInt8(cpu.port_iomap_r8[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr))
 end
 
 @noinline function port_io_w32(cpu:: CPU, addr:: UInt64, data:: UInt32)

@@ -7,7 +7,7 @@ function init_c_world(mem:: PhysicalMemory)
 	const cb_buffer_to_phys_ram =
 		cfunction(buffer_to_phys_ram, Void, (Culonglong, Culonglong, Ptr{UInt8},))
 	
-	ccall(("init_c_world", "./hw/hw_qemu/hw_qemu.so"), 
+	ccall(("init_c_world", HW_LIB_PATH), 
 		Void,
 		(Ptr{UInt8}, Ptr{Void}, Ptr{Void}),
 		mem.baseptr, cb_phys_ram_to_buffer, cb_buffer_to_phys_ram)
@@ -49,7 +49,7 @@ function main()
 	i8257_2 = I8257(UInt64(0xc0), 1, UInt64(0x88), -1)
 	register_port_io_map(cpu, i8257_2)
 
-	r = ccall(("phys_ram_c_access_test", "./hw/hw_qemu/hw_qemu.so"), Cint, ())
+	r = ccall(("phys_ram_c_access_test", HW_LIB_PATH), Cint, ())
 	println(r)
 	if (r < 0)
 		error("phys_ram_c_access_test() failed")

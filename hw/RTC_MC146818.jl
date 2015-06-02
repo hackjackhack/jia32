@@ -18,7 +18,7 @@ type MC146818 <: IODev
 			Dict{UInt64, Function}(),
 			Dict{UInt64, Function}(),
 			Dict{UInt64, Function}())
-		mc146818.internal_c_obj = ccall(("RTC_c_init", "./hw/hw_qemu/hw_qemu.so"),
+		mc146818.internal_c_obj = ccall(("RTC_c_init", HW_LIB_PATH),
 						Ptr{Void},
 						(Int32, Int32, Int32, Int32,),
 						Int32(base & 0xffffffff), year, month, day)
@@ -32,7 +32,7 @@ type MC146818 <: IODev
 end
 
 function mc146818_ioport_write(mc146818:: MC146818, addr:: UInt64, data:: UInt8)
-	ccall(("cmos_ioport_write", "./hw/hw_qemu/hw_qemu.so"),
+	ccall(("cmos_ioport_write", HW_LIB_PATH),
 		Void,
 		(Ptr{Void}, UInt32, UInt32,),
 		mc146818.internal_c_obj, addr, UInt32(data)
@@ -40,7 +40,7 @@ function mc146818_ioport_write(mc146818:: MC146818, addr:: UInt64, data:: UInt8)
 end
 
 function mc146818_ioport_read(mc146818:: MC146818, addr:: UInt64)
-	return UInt8(ccall(("cmos_ioport_read", "./hw/hw_qemu/hw_qemu.so"),
+	return UInt8(ccall(("cmos_ioport_read", HW_LIB_PATH),
 		UInt32,
 		(Ptr{Void}, UInt32,),
 		mc146818.internal_c_obj, addr) & 0xff)
