@@ -1,3 +1,4 @@
+include("../Common.jl")
 include("../CPU.jl")
 include("../PhysicalMemory.jl")
 

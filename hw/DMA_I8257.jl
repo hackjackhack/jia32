@@ -16,7 +16,7 @@ type I8257 <: IODev
 			    Dict{UInt64, Function}(),
 			    Dict{UInt64, Function}(),
 			    Dict{UInt64, Function}())
-		i8257.internal_c_obj = ccall(("DMA_c_init", "./hw/hw_qemu/hw_qemu.so"), Ptr{Void}, (Int32,), dshift)
+		i8257.internal_c_obj = ccall(("DMA_c_init", HW_LIB_PATH), Ptr{Void}, (Int32,), dshift)
 		println(i8257.internal_c_obj)
 		
 		for i = 0 : 7
@@ -39,56 +39,56 @@ type I8257 <: IODev
 end
 
 function i8257_write_chan(i8257:: I8257, addr:: UInt64, data:: UInt8)
-	ccall(("write_chan", "./hw/hw_qemu/hw_qemu.so"),
+	ccall(("write_chan", HW_LIB_PATH),
 		Void,
 		(Ptr{Void}, UInt32, UInt32,),
 		i8257.internal_c_obj, addr, UInt32(data))
 end
 
 function i8257_write_cont(i8257:: I8257, addr:: UInt64, data:: UInt8)
-	ccall(("write_cont", "./hw/hw_qemu/hw_qemu.so"),
+	ccall(("write_cont", HW_LIB_PATH),
 		Void,
 		(Ptr{Void}, UInt32, UInt32,),
 		i8257.internal_c_obj, addr, UInt32(data))
 end
 
 function i8257_write_page(i8257:: I8257, addr:: UInt64, data:: UInt8)
-	ccall(("write_page", "./hw/hw_qemu/hw_qemu.so"),
+	ccall(("write_page", HW_LIB_PATH),
 		Void,
 		(Ptr{Void}, UInt32, UInt32,),
 		i8257.internal_c_obj, addr, UInt32(data))
 end
 
 function i8257_write_pageh(i8257:: I8257, addr:: UInt64, data:: UInt8)
-	ccall(("write_pageh", "./hw/hw_qemu/hw_qemu.so"),
+	ccall(("write_pageh", HW_LIB_PATH),
 		Void,
 		(Ptr{Void}, UInt32, UInt32,),
 		i8257.internal_c_obj, addr, UInt32(data))
 end
 
 function i8257_read_chan(i8257:: I8257, addr:: UInt64)
-	return UInt8(ccall(("read_chan", "./hw/hw_qemu/hw_qemu.so"),
+	return UInt8(ccall(("read_chan", HW_LIB_PATH),
 		UInt32,
 		(Ptr{Void}, UInt32,),
 		i8257.internal_c_obj, addr) & 0xff)
 end
 
 function i8257_read_cont(i8257:: I8257, addr:: UInt64)
-	return UInt8(ccall(("read_cont", "./hw/hw_qemu/hw_qemu.so"),
+	return UInt8(ccall(("read_cont", HW_LIB_PATH),
 		UInt32,
 		(Ptr{Void}, UInt32,),
 		i8257.internal_c_obj, addr) & 0xff)
 end
 
 function i8257_read_page(i8257:: I8257, addr:: UInt64)
-	return UInt8(ccall(("read_page", "./hw/hw_qemu/hw_qemu.so"),
+	return UInt8(ccall(("read_page", HW_LIB_PATH),
 		UInt32,
 		(Ptr{Void}, UInt32,),
 		i8257.internal_c_obj, addr) & 0xff)
 end
 
 function i8257_read_pageh(i8257:: I8257, addr:: UInt64)
-	return UInt8(ccall(("read_pageh", "./hw/hw_qemu/hw_qemu.so"),
+	return UInt8(ccall(("read_pageh", HW_LIB_PATH),
 		UInt32,
 		(Ptr{Void}, UInt32,),
 		i8257.internal_c_obj, addr) & 0xff)

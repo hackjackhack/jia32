@@ -1,4 +1,8 @@
+include("Common.jl")
 include("CPU.jl")
 include("PhysicalMemory.jl")
+include("InstructionClock.jl")
 include("hw/EPROM.jl")
 include("hw/DMA_I8257.jl")
+include("hw/PIC_I8259.jl")
+include("hw/RTC_MC146818.jl")

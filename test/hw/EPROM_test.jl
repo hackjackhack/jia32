@@ -1,3 +1,4 @@
+include("../../Common.jl")
 include("../../hw/EPROM.jl")
 
 rom = EPROM(UTF8String("images/bios.bin"))

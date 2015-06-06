@@ -84,6 +84,17 @@ const CPU_ID   = 0x0000000000200000
 
 IOFunc = Union(Bool, Function)
 
+type JITBlock
+	exec:: Function
+	nb_instr:: UInt64
+	nb_exec:: UInt64
+
+	function JITBlock(f:: Function, icount:: UInt64)
+		block = new(f, icount, 0)
+		return block
+	end
+end
+
 type CPU
 	genl_regs_buffer:: Array{UInt8}
 	genl_regs:: Ptr{UInt8}
@@ -116,7 +127,7 @@ type CPU
 	jit_rip:: UInt64
 	jit_ip_addend:: UInt8
 	jit_eot:: Bool
-	jl_blocks:: Dict{UInt64, Dict{UInt64, Function}}
+	jl_blocks:: Dict{UInt64, Dict{UInt64, JITBlock}}
 
 	#= Port I/O system
 	   For devices that are accessed through a separated I/O port space.
@@ -153,7 +164,7 @@ type CPU
 
 		cpu.single_stepping = true
 		cpu.jit_enabled = true
-		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, Function}}()
+		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, JITBlock}}()
 
 		#cpu.port_iomap = Array(Bool, 1 << 16)
 		cpu.port_iomap_dev = Array(IODev, 1 << 16)
@@ -169,7 +180,6 @@ type CPU
 		fill!(cpu.port_iomap_w32, false)
 		fill!(cpu.port_iomap_w16, false)
 		fill!(cpu.port_iomap_w8,  false)
-		#fill!(cpu.port_iomap, false)
 
 		return cpu
 	end
@@ -617,106 +627,94 @@ end
 # Port I/O system
 function register_port_io_map(cpu:: CPU, device:: IODev)
 	for port in keys(device.portlist_r32)
-		i = port + 1
-		#cpu.port_iomap[i] = true
-		cpu.port_iomap_dev[i] = device
-		cpu.port_iomap_r32[i] = device.portlist_r32[port] 
+		cpu.port_iomap_dev[@ZB(port)] = device
+		cpu.port_iomap_r32[@ZB(port)] = device.portlist_r32[port] 
 	end
 
 	for port in keys(device.portlist_r16)
-		i = port + 1
-		#cpu.port_iomap[i] = true
-		cpu.port_iomap_dev[i] = device
-		cpu.port_iomap_r16[i] = device.portlist_r16[port] 
+		cpu.port_iomap_dev[@ZB(port)] = device
+		cpu.port_iomap_r16[@ZB(port)] = device.portlist_r16[port] 
 	end
 
 	for port in keys(device.portlist_r8)
-		i = port + 1
-		#cpu.port_iomap[i] = true
-		cpu.port_iomap_dev[i] = device
-		cpu.port_iomap_r8[i] = device.portlist_r8[port] 
+		cpu.port_iomap_dev[@ZB(port)] = device
+		cpu.port_iomap_r8[@ZB(port)] = device.portlist_r8[port] 
 	end
 
 	for port in keys(device.portlist_w32)
-		i = port + 1
-		#cpu.port_iomap[i] = true
-		cpu.port_iomap_dev[i] = device
-		cpu.port_iomap_w32[i] = device.portlist_w32[port] 
+		cpu.port_iomap_dev[@ZB(port)] = device
+		cpu.port_iomap_w32[@ZB(port)] = device.portlist_w32[port] 
 	end
 
 	for port in keys(device.portlist_w16)
-		i = port + 1
-		#cpu.port_iomap[i] = true
-		cpu.port_iomap_dev[i] = device
-		cpu.port_iomap_w16[i] = device.portlist_w16[port] 
+		cpu.port_iomap_dev[@ZB(port)] = device
+		cpu.port_iomap_w16[@ZB(port)] = device.portlist_w16[port] 
 	end
 
 	for port in keys(device.portlist_w8)
-		i = port + 1
-		#cpu.port_iomap[i] = true
-		cpu.port_iomap_dev[i] = device
-		cpu.port_iomap_w8[i] = device.portlist_w8[port] 
+		cpu.port_iomap_dev[@ZB(port)] = device
+		cpu.port_iomap_w8[@ZB(port)] = device.portlist_w8[port] 
 	end
 end
 
 @noinline function port_io_r32(cpu:: CPU, addr:: UInt64)
-	if cpu.port_iomap_r32[addr + 1] == false
+	if cpu.port_iomap_r32[@ZB(addr)] == false
 		println("I/O port $(hex(addr)) has no 32-bit read IO function. Trying to fall back to 8-bit read.") 
-		return port_io_r8(cpu, addr) | 
+		return UInt32(port_io_r8(cpu, addr)) | 
 			(UInt32(port_io_r8(cpu, addr + 1)) << 8) |
 			(UInt32(port_io_r8(cpu, addr + 2)) << 16) |
 			(UInt32(port_io_r8(cpu, addr + 3)) << 24)
 	else
-		return cpu.port_iomap_r32[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
+		return UInt32(cpu.port_iomap_r32[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr))
 	end
 end
 
 @noinline function port_io_r16(cpu:: CPU, addr:: UInt64)
-	if cpu.port_iomap_r16[addr + 1] == false
+	if cpu.port_iomap_r16[@ZB(addr)] == false
 		println("I/O port 0x$(hex(addr)) has no 16-bit read IO function. Trying to fall back to 8-bit read.") 
-		return port_io_r8(cpu, addr) | 
-			(UInt32(port_io_r8(cpu, addr + 1)) << 8)
+		return UInt16(port_io_r8(cpu, addr)) | 
+			(UInt16(port_io_r8(cpu, addr + 1)) << 8)
 	else
-		return cpu.port_iomap_r16[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
+		return UInt16(cpu.port_iomap_r16[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr))
 	end
 end
 
 @noinline function port_io_r8(cpu:: CPU, addr:: UInt64)
-	if cpu.port_iomap_r8[addr + 1] == false
+	if cpu.port_iomap_r8[@ZB(addr)] == false
 		println("r8 : Unregistered I/O port 0x$(hex(addr))") 
 		return UInt8(0)
 	end
-	return cpu.port_iomap_r8[addr + 1](cpu.port_iomap_dev[addr + 1], addr)
+	return UInt8(cpu.port_iomap_r8[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr))
 end
 
 @noinline function port_io_w32(cpu:: CPU, addr:: UInt64, data:: UInt32)
-	if cpu.port_iomap_w32[addr + 1] == false
+	if cpu.port_iomap_w32[@ZB(addr)] == false
 		println("I/O port 0x$(hex(addr)) has no 32-bit write IO function. Trying to fall back to 8-bit write.")
 		port_io_w8(UInt8(data & 0xff), addr)
 		port_io_w8(UInt8((data & 0xff00) >>> 8 ), addr + 1)
 		port_io_w8(UInt8((data & 0xff0000) >>> 16 ), addr + 2)
 		port_io_w8(UInt8((data & 0xff000000) >>> 24 ), addr + 3)
 	else
-		cpu.port_iomap_w32[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
+		cpu.port_iomap_w32[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr, data)
 	end
 end
 
 @noinline function port_io_w16(cpu:: CPU, addr:: UInt64, data:: UInt16)
-	if cpu.port_iomap_w16[addr + 1] == false
+	if cpu.port_iomap_w16[@ZB(addr)] == false
 		println("I/O port 0x$(hex(addr)) has no 16-bit write IO function. Trying to fall back to 8-bit write.")
 		port_io_w8(UInt8(data & 0xff), addr)
 		port_io_w8(UInt8((data & 0xff00) >>> 8 ), addr + 1)
 	else
-		cpu.port_iomap_w16[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
+		cpu.port_iomap_w16[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr, data)
 	end
 end
 
 @noinline function port_io_w8(cpu:: CPU, addr:: UInt64, data:: UInt8)
-	if cpu.port_iomap_w8[addr + 1] == false
+	if cpu.port_iomap_w8[@ZB(addr)] == false
 		println("w8 : Unregistered I/O port 0x$(hex(addr))")
 		return
 	end
-	cpu.port_iomap_w8[addr + 1](cpu.port_iomap_dev[addr + 1], addr, data)
+	cpu.port_iomap_w8[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr, data)
 end
 
 # Execution engine
@@ -735,13 +733,16 @@ function loop(cpu:: CPU, mem:: PhysicalMemory)
 		dump(cpu)
 		cpu.segment = -1;
 		if cpu.jit_enabled
-			f = find_jl_block(cpu, mem)
-			f(cpu, mem)
-			@code_native(f(cpu,mem))
+			block = find_jl_block(cpu, mem)
+			block.nb_exec += 1
+			block.exec(cpu, mem)
+			update_clock(g_clock, block.nb_instr)
+			@code_native(block.exec(cpu,mem))
 		else
 			b = emu_fetch8_advance(cpu, mem)
 			println(hex(b))
 			cpu.emu_insn_tbl[b](cpu, mem, b)
+			update_clock(g_clock, UInt64(1))
 		end
 		println("----- Cycle End -----")
 	end
@@ -773,4 +774,22 @@ function dump(cpu:: CPU)
 	println("rdi: $(hex(@reg_r_named(cpu, RDI)))")
 	println("")
 	println("rip: $(hex(@rip(cpu)))")
+end
+
+function interrupt_for_c_hw(opaque:: Ptr{Void}, irq:: Cint, level:: Cint)
+	#= The first two arguments are useless.
+	   They exist to match the callback function signature in qemu_irq.
+
+	   TODO: APIC =#
+	if (level)
+		interrupt(g_cpu)
+	else
+		clear_interrupt(g_cpu)
+	end
+end
+
+function interrupt(cpu:: CPU)
+end
+
+function clear_interrupt(cpu:: CPU)
 end

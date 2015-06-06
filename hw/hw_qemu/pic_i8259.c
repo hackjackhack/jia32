@@ -22,47 +22,14 @@
  * THE SOFTWARE.
  */
 #include "qemu_common.h"
-#include "irq.h"
+#include "interface.h"
+#include "pic_i8259.h"
 
 /* debug PIC */
 //#define DEBUG_PIC
 
 //#define DEBUG_IRQ_LATENCY
 //#define DEBUG_IRQ_COUNT
-typedef struct PicState2 PicState2;
-
-typedef struct PicState {
-    uint8_t last_irr; /* edge detection */
-    uint8_t irr; /* interrupt request register */
-    uint8_t imr; /* interrupt mask register */
-    uint8_t isr; /* interrupt service register */
-    uint8_t priority_add; /* highest irq priority */
-    uint8_t irq_base;
-    uint8_t read_reg_select;
-    uint8_t poll;
-    uint8_t special_mask;
-    uint8_t init_state;
-    uint8_t auto_eoi;
-    uint8_t rotate_on_auto_eoi;
-    uint8_t special_fully_nested_mode;
-    uint8_t init4; /* true if 4 byte init */
-    uint8_t single_mode; /* true if slave pic is not initialized */
-    uint8_t elcr; /* PIIX edge/trigger selection*/
-    uint8_t elcr_mask;
-    PicState2 *pics_state;
-} PicState;
-
-struct PicState2 {
-    /* 0 is master pic, 1 is slave pic */
-    /* XXX: better separation between the two pics */
-    PicState pics[2];
-    qemu_irq parent_irq;
-    void *irq_request_opaque;
-    /* IOAPIC callback support */
-    SetIRQFunc *alt_irq_func;
-    void *alt_irq_opaque;
-};
-
 #if defined(DEBUG_PIC) || defined (DEBUG_IRQ_COUNT)
 static int irq_level[16];
 #endif
@@ -503,19 +470,19 @@ static int pic_load(QEMUFile *f, void *opaque, int version_id)
 */
 
 /* XXX: add generic master/slave system */
+/*
 static void pic_init1(int io_addr, int elcr_addr, PicState *s)
 {
-/*
     register_ioport_write(io_addr, 2, 1, pic_ioport_write, s);
     register_ioport_read(io_addr, 2, 1, pic_ioport_read, s);
     if (elcr_addr >= 0) {
         register_ioport_write(elcr_addr, 1, 1, elcr_ioport_write, s);
         register_ioport_read(elcr_addr, 1, 1, elcr_ioport_read, s);
     }
-*/
     //register_savevm("i8259", io_addr, 1, pic_save, pic_load, s);
     //qemu_register_reset(pic_reset, s);
 }
+*/
 
 /*
 void pic_info(void)
@@ -555,22 +522,30 @@ void irq_info(void)
 }
 */
 
-qemu_irq *i8259_init(qemu_irq parent_irq)
+PicState2* I8259_c_init(void** pic0, void** pic1)
 {
     PicState2 *s;
 
     s = qemu_mallocz(sizeof(PicState2));
     if (!s)
         return NULL;
-    pic_init1(0x20, 0x4d0, &s->pics[0]);
-    pic_init1(0xa0, 0x4d1, &s->pics[1]);
+    fprintf(stderr, "pics: %p %p\n", &s->pics[0], &s->pics[1]);
+    *pic0 = &s->pics[0];
+    *pic1 = &s->pics[1];
+
     s->pics[0].elcr_mask = 0xf8;
     s->pics[1].elcr_mask = 0xde;
-    s->parent_irq = parent_irq;
+
+    // Connect to the interrupt pin of CPU
+    qemu_irq* cpu_irq = qemu_allocate_irqs(j_cpu_interrupt, NULL, 1);
+    s->parent_irq = cpu_irq[0];
+
     s->pics[0].pics_state = s;
     s->pics[1].pics_state = s;
     //isa_pic = s;
-    return qemu_allocate_irqs(i8259_set_irq, s, 16);
+
+    s->children_irqs = qemu_allocate_irqs(i8259_set_irq, s, 16);
+    return s;
 }
 
 void pic_set_alt_irq_func(PicState2 *s, SetIRQFunc *alt_irq_func,
@@ -578,4 +553,10 @@ void pic_set_alt_irq_func(PicState2 *s, SetIRQFunc *alt_irq_func,
 {
     s->alt_irq_func = alt_irq_func;
     s->alt_irq_opaque = alt_irq_opaque;
+}
+
+void connect_dev_to_pic(PicState2 *pic, void *dev, int nb_irq)
+{
+    qemu_irq *dev_irq = dev;
+    *dev_irq = pic->children_irqs[nb_irq];
 }

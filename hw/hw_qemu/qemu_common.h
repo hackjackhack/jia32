@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define QEMU_TIMER_BASE 1000000000LL
+
 // Memory management functions
 void qemu_free(void *ptr);
 void *qemu_malloc(size_t size);
@@ -55,4 +57,5 @@ void qemu_bh_cancel(QEMUBH *bh);
 void qemu_bh_delete(QEMUBH *bh);
 void qemu_bh_update_timeout(int *timeout);
 
+uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c);
 #endif

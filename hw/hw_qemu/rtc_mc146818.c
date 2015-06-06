@@ -27,6 +27,7 @@
 #include "interface.h"
 #include "qemu_common.h"
 #include "irq.h"
+#include "pic_i8259.h"
 
 #define DEBUG_CMOS
 
@@ -57,19 +58,30 @@
 #define REG_B_DM  0x04
 
 struct RTCState {
+    // Place qemu_irq first to make pointers convertible between irq and device 
+    qemu_irq irq;
     uint8_t cmos_data[128];
     uint8_t cmos_index;
     struct tm current_tm;
-    qemu_irq irq;
     int it_shift;
     /* periodic timer */
-    QEMUTimer *periodic_timer;
-    int64_t next_periodic_time;
+    //QEMUTimer *periodic_timer;
+    int64_t periodic_timer_key;
+    uint64_t next_periodic_time;
     /* second update */
-    int64_t next_second_time;
-    QEMUTimer *second_timer;
-    QEMUTimer *second_timer2;
+    uint64_t next_second_time;
+    //QEMUTimer *second_timer;
+    //QEMUTimer *second_timer2;
+    int64_t second_timer_key;
+    int64_t second_timer2_key;
 };
+
+typedef struct RTCState RTCState;
+
+// TODO : Remove this when hpet is ready
+static int hpet_in_legacy_mode() {
+	return 0;
+}
 
 static void rtc_irq_raise(qemu_irq irq) {
     /* When HPET is operating in legacy mode, RTC interrupts are disabled
@@ -77,14 +89,14 @@ static void rtc_irq_raise(qemu_irq irq) {
      * mode is established while interrupt is raised. We want it to
      * be lowered in any case
      */
-#if defined TARGET_I386 || defined TARGET_X86_64
     if (!hpet_in_legacy_mode())
-#endif
         qemu_irq_raise(irq);
 }
 
 static void rtc_set_time(RTCState *s);
 static void rtc_copy_date(RTCState *s);
+
+static int64_t ticks_per_sec = QEMU_TIMER_BASE;
 
 static void rtc_timer_update(RTCState *s, int64_t current_time)
 {
@@ -92,14 +104,10 @@ static void rtc_timer_update(RTCState *s, int64_t current_time)
     int64_t cur_clock, next_irq_clock;
 
     period_code = s->cmos_data[RTC_REG_A] & 0x0f;
-#if defined TARGET_I386 || defined TARGET_X86_64
     /* disable periodic timer if hpet is in legacy mode, since interrupts are
      * disabled anyway.
      */
     if (period_code != 0 && (s->cmos_data[RTC_REG_B] & REG_B_PIE) && !hpet_in_legacy_mode()) {
-#else
-    if (period_code != 0 && (s->cmos_data[RTC_REG_B] & REG_B_PIE)) {
-#endif
         if (period_code <= 2)
             period_code += 7;
         /* period in 32 Khz cycles */
@@ -108,9 +116,9 @@ static void rtc_timer_update(RTCState *s, int64_t current_time)
         cur_clock = muldiv64(current_time, 32768, ticks_per_sec);
         next_irq_clock = (cur_clock & ~(period - 1)) + period;
         s->next_periodic_time = muldiv64(next_irq_clock, ticks_per_sec, 32768) + 1;
-        qemu_mod_timer(s->periodic_timer, s->next_periodic_time);
+        j_mod_timer(s->periodic_timer_key, s->next_periodic_time);
     } else {
-        qemu_del_timer(s->periodic_timer);
+        j_cancel_timer(s->periodic_timer_key);
     }
 }
 
@@ -123,7 +131,7 @@ static void rtc_periodic_timer(void *opaque)
     rtc_irq_raise(s->irq);
 }
 
-static void cmos_ioport_write(void *opaque, uint32_t addr, uint32_t data)
+void cmos_ioport_write(void *opaque, uint32_t addr, uint32_t data)
 {
     RTCState *s = opaque;
 
@@ -158,7 +166,7 @@ static void cmos_ioport_write(void *opaque, uint32_t addr, uint32_t data)
             /* UIP bit is read only */
             s->cmos_data[RTC_REG_A] = (data & ~REG_A_UIP) |
                 (s->cmos_data[RTC_REG_A] & REG_A_UIP);
-            rtc_timer_update(s, qemu_get_clock(vm_clock));
+            rtc_timer_update(s, j_get_clock());
             break;
         case RTC_REG_B:
             if (data & REG_B_SET) {
@@ -172,7 +180,7 @@ static void cmos_ioport_write(void *opaque, uint32_t addr, uint32_t data)
                 }
             }
             s->cmos_data[RTC_REG_B] = data;
-            rtc_timer_update(s, qemu_get_clock(vm_clock));
+            rtc_timer_update(s, j_get_clock());
             break;
         case RTC_REG_C:
         case RTC_REG_D:
@@ -303,7 +311,7 @@ static void rtc_update_second(void *opaque)
     /* if the oscillator is not in normal operation, we do not update */
     if ((s->cmos_data[RTC_REG_A] & 0x70) != 0x20) {
         s->next_second_time += ticks_per_sec;
-        qemu_mod_timer(s->second_timer, s->next_second_time);
+        j_mod_timer(s->second_timer_key, s->next_second_time);
     } else {
         rtc_next_second(&s->current_tm);
 
@@ -316,7 +324,7 @@ static void rtc_update_second(void *opaque)
         delay = (ticks_per_sec * 1) / 100;
         if (delay < 1)
             delay = 1;
-        qemu_mod_timer(s->second_timer2,
+        j_mod_timer(s->second_timer2_key,
                        s->next_second_time + delay);
     }
 }
@@ -353,10 +361,10 @@ static void rtc_update_second2(void *opaque)
     s->cmos_data[RTC_REG_A] &= ~REG_A_UIP;
 
     s->next_second_time += ticks_per_sec;
-    qemu_mod_timer(s->second_timer, s->next_second_time);
+    j_mod_timer(s->second_timer_key, s->next_second_time);
 }
 
-static uint32_t cmos_ioport_read(void *opaque, uint32_t addr)
+uint32_t cmos_ioport_read(void *opaque, uint32_t addr)
 {
     RTCState *s = opaque;
     int ret;
@@ -409,13 +417,20 @@ void rtc_set_date(RTCState *s, const struct tm *tm)
 #define REG_IBM_CENTURY_BYTE        0x32
 #define REG_IBM_PS2_CENTURY_BYTE    0x37
 
-static void rtc_set_date_from_host(RTCState *s)
+static void rtc_set_date_from_host(RTCState *s, int year, int month, int day)
 {
     struct tm tm;
     int val;
 
     /* set the CMOS date */
-    qemu_get_timedate(&tm, 0);
+    tm.tm_year = year;
+    tm.tm_mon = month - 1;
+    tm.tm_mday = day;
+    tm.tm_sec = 0;
+    tm.tm_min = 0;
+    tm.tm_hour = 0;
+    tm.tm_isdst = 0;
+
     rtc_set_date(s, &tm);
 
     val = to_bcd(s, (tm.tm_year / 100) + 19);
@@ -475,7 +490,7 @@ static int rtc_load(QEMUFile *f, void *opaque, int version_id)
 }
 */
 
-RTCState *rtc_init(int base, qemu_irq irq)
+RTCState *RTC_c_init(int base, int year, int month, int day)
 {
     RTCState *s;
 
@@ -483,28 +498,21 @@ RTCState *rtc_init(int base, qemu_irq irq)
     if (!s)
         return NULL;
 
-    s->irq = irq;
+    //s->irq = irq;
     s->cmos_data[RTC_REG_A] = 0x26;
     s->cmos_data[RTC_REG_B] = 0x02;
     s->cmos_data[RTC_REG_C] = 0x00;
     s->cmos_data[RTC_REG_D] = 0x80;
 
-    rtc_set_date_from_host(s);
+    rtc_set_date_from_host(s, year, month, day);
 
-    s->periodic_timer = qemu_new_timer(vm_clock,
-                                       rtc_periodic_timer, s);
-    s->second_timer = qemu_new_timer(vm_clock,
-                                     rtc_update_second, s);
-    s->second_timer2 = qemu_new_timer(vm_clock,
-                                      rtc_update_second2, s);
+    s->periodic_timer_key = j_new_timer(rtc_periodic_timer, s);
+    s->second_timer_key   = j_new_timer(rtc_update_second, s);
+    s->second_timer2_key  = j_new_timer(rtc_update_second2, s);
 
-    s->next_second_time = qemu_get_clock(vm_clock) + (ticks_per_sec * 99) / 100;
-    qemu_mod_timer(s->second_timer2, s->next_second_time);
-
-    register_ioport_write(base, 2, 1, cmos_ioport_write, s);
-    register_ioport_read(base, 2, 1, cmos_ioport_read, s);
+    s->next_second_time = j_get_clock() + (ticks_per_sec * 99) / 100;
+    j_mod_timer(s->second_timer2_key, s->next_second_time);
 
     //register_savevm("mc146818rtc", base, 1, rtc_save, rtc_load, s);
     return s;
 }
-
