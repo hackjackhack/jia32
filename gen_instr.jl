@@ -49,8 +49,8 @@ function translate_template(lines)
 end
 
 function generate_emu_jit_code(opcode, lines)
-	emu_str = "function emu_$opcode(cpu:: CPU, mem:: PhysicalMemory, opc:: UInt16 = $opcode)\n"
-	jit_str = "function jit_$opcode(cpu:: CPU, mem:: PhysicalMemory, opc:: UInt16 = $opcode)\n"
+	emu_str = "function emu_$opcode(cpu:: CPU, mem:: PhysicalMemory, opc:: UInt16)\n"
+	jit_str = "function jit_$opcode(cpu:: CPU, mem:: PhysicalMemory, opc:: UInt16)\n"
 	jit_str *= "    jl_expr = quote end\n"
 
 	translated_code = translate_template(lines)
