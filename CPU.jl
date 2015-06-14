@@ -348,7 +348,7 @@ function rflags_compute_add!(cpu:: CPU, dt:: DataType)
     data_max = typemax(dt)
     dst::UInt64 = cpu.lazyf_op1 + cpu.lazyf_op2
      
-    cf::UInt32 = (dst < cpu.lazyf_op1)? 0x1 : 0x0
+    cf::UInt32 = ((dst & data_max) < cpu.lazyf_op1)? 0x1 : 0x0
     pf::UInt32 = parity_table[(dst & 0xff) + 1]
     af::UInt32 = (dst $ cpu.lazyf_op1 $ cpu.lazyf_op2) & 0x10
     zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
@@ -365,7 +365,7 @@ function rflags_compute_adc!(cpu:: CPU, dt:: DataType)
     data_max = typemax(dt)
     dst::UInt64 = cpu.lazyf_op1 + cpu.lazyf_op2 + 1
      
-    cf::UInt32 = (dst <= cpu.lazyf_op1)? 0x1 : 0x0
+    cf::UInt32 = ((dst & data_max) <= cpu.lazyf_op1)? 0x1 : 0x0
     pf::UInt32 = parity_table[(dst & 0xff) + 1]
     af::UInt32 = (dst $ cpu.lazyf_op1 $ cpu.lazyf_op2) & 0x10
     zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
@@ -741,7 +741,7 @@ function loop(cpu:: CPU, mem:: PhysicalMemory)
 		else
 			b = emu_fetch8_advance(cpu, mem)
 			println(hex(b))
-			cpu.emu_insn_tbl[b](cpu, mem, b)
+			cpu.emu_insn_tbl[b](cpu, mem, UInt16(b))
 			update_clock(g_clock, UInt64(1))
 		end
 		println("----- Cycle End -----")
