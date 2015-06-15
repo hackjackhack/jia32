@@ -761,9 +761,13 @@ function reset(cpu:: CPU)
 	@sreg!(cpu, SS, 0)
 	@sreg_base!(cpu, SS, 0x0)
 	@reg_w_named!(cpu, RSP, 0)
+
+    # Volume 3, Chapter 9.1.2, Table 9-1
+    cpu.rflags = UInt64(0x02)
 end
 
 function dump(cpu:: CPU)
+    #=
 	println("rax: $(hex(@reg_r_named(cpu, RAX)))")
 	println("rcx: $(hex(@reg_r_named(cpu, RCX)))")
 	println("rdx: $(hex(@reg_r_named(cpu, RDX)))")
@@ -774,6 +778,28 @@ function dump(cpu:: CPU)
 	println("rdi: $(hex(@reg_r_named(cpu, RDI)))")
 	println("")
 	println("rip: $(hex(@rip(cpu)))")
+    =#
+    
+    # The x64-only CPU info. is not shown
+    @printf( "RAX=%016x  RBX=%016x  RCX=%016x  RDX=%016x\nRSI=%016x  RDI=%016x  RBP=%016x  RSP=%016x\nRIP=%016x  RFL=%016x [%c%c%c%c%c%c%c]\n",
+              @reg_r_named(cpu, RAX),
+              @reg_r_named(cpu, RBX),
+              @reg_r_named(cpu, RCX),
+              @reg_r_named(cpu, RDX),
+              @reg_r_named(cpu, RSI),
+              @reg_r_named(cpu, RDI),
+              @reg_r_named(cpu, RBP),
+              @reg_r_named(cpu, RSP),
+              @rip(cpu),
+              cpu.rflags,
+              (cpu.rflags & CPU_DF == 0x1) ? 'D' : '-',
+              (cpu.rflags & CPU_OF == 0x1) ? 'O' : '-',
+              (cpu.rflags & CPU_SF == 0x1) ? 'S' : '-',
+              (cpu.rflags & CPU_ZF == 0x1) ? 'Z' : '-',
+              (cpu.rflags & CPU_AF == 0x1) ? 'A' : '-',
+              (cpu.rflags & CPU_PF == 0x1) ? 'P' : '-',
+              (cpu.rflags & CPU_CF == 0x1) ? 'C' : '-'
+              )
 end
 
 function interrupt_for_c_hw(opaque:: Ptr{Void}, irq:: Cint, level:: Cint)
