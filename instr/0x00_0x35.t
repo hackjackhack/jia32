@@ -36,7 +36,7 @@ j=          b += (cpu.rflags & CPU_CF)
         end
 
 j=      a = @reg_r(cpu, $$ot, 0)
-j=      r = eval(Expr(:call, $$op_func, a, b))
+j=      r = $$op_func(a, b)
 j=      @reg_w!(cpu, $$ot, 0, r)
     else
 call= modrm modrm,mod,rm,reg,disp,is_reg,ev_reg,t_addr,seg
@@ -63,7 +63,7 @@ j=          b = @reg_r(cpu, $$ot, $$r_src)
 j=              rflags_compute!(cpu)        
 j=              b += (cpu.rflags & CPU_CF)
             end
-j=          r = eval(Expr(:call, $$op_func, a, b))
+j=          r = $$op_func(a, b)
 j=          @reg_w!(cpu, $$ot, $$r_dst, r)
 
         else       
@@ -84,7 +84,7 @@ j=          @reg_w!(cpu, $$ot, $$r_dst, r)
             # in this opcode group, each operation is commutative
 j=          a = $$f_ru(cpu, mem, $$seg, t_addr)
 j=          b = @reg_r(cpu, $$ot, $$reg)
-j=          r = eval(Expr(:call, $$op_func, a, b))
+j=          r = $$op_func(a, b)
             if op_type == OP_ADC 
 j=              rflags_compute!(cpu)        
 j=              r += (cpu.rflags & CPU_CF)

@@ -36,8 +36,10 @@ j=          b += (cpu.rflags & CPU_CF)
         end
 
 j=      a = @reg_r(cpu, $$ot, 0)
-j=      r = eval(Expr(:call, $$op_func, a, b))
-j=      @reg_w!(cpu, $$ot, 0, r)
+        if op_type != OP_CMP
+j=          r = $$op_func(a, b)
+j=          @reg_w!(cpu, $$ot, 0, r)
+        end
     else
 call= modrm modrm,mod,rm,reg,disp,is_reg,ev_reg,t_addr,seg
         if is_reg
@@ -63,8 +65,11 @@ j=          b = @reg_r(cpu, $$ot, $$r_src)
 j=              rflags_compute!(cpu)        
 j=              b += (cpu.rflags & CPU_CF)
             end
-j=          r = eval(Expr(:call, $$op_func, a, b))
-j=          @reg_w!(cpu, $$ot, $$r_dst, r)
+            
+            if op_type != OP_CMP
+j=              r = $$op_func(a, b)
+j=              @reg_w!(cpu, $$ot, $$r_dst, r)
+            end
 
         else
             if opc_l & 0x01 == 0
@@ -84,21 +89,26 @@ j=          @reg_w!(cpu, $$ot, $$r_dst, r)
             if opc_l & 0x02 == 0
 j=              a = $$f_ru(cpu, mem, $$seg, t_addr)
 j=              b = @reg_r(cpu, $$ot, $$seg)
-                if op_type == OP_SBB
-j=                  rflags_compute!(cpu)
-j=                  b += (cpu.rflags & CPU_CF)
+                
+                if op_type != OP_CMP
+                    if op_type == OP_SBB
+j=                      rflags_compute!(cpu)
+j=                      b += (cpu.rflags & CPU_CF)
+                    end
+j=                  r = $$op_func(a, b)
+j=                  $$f_wu(cpu, mem, $$seg, t_addr, r)
                 end
-j=              r = eval(Expr(:call, $$op_func, a, b))                
-j=              $$f_wu(cpu, mem, $$seg, t_addr, r)
             else
 j=              a = @reg_r(cpu, $$ot, $$reg)
 j=              b = $$f_ru(cpu, mem, $$seg, t_addr)
-                if op_type == OP_SBB
-j=                  rflags_compute!(cpu)        
-j=                  b += (cpu.rflags & CPU_CF)
+                if op_type != OP_CMP
+                    if op_type == OP_SBB
+j=                      rflags_compute!(cpu)        
+j=                      b += (cpu.rflags & CPU_CF)
+                    end
+j=                  r = $$op_func(a, b)
+j=                  @reg_w!(cpu, $ot, $$reg, r)
                 end
-j=              r = eval(Expr(:call, $$op_func, a, b))
-j=              @reg_w!(cpu, $ot, $$reg, r)
             end
         end
     end
