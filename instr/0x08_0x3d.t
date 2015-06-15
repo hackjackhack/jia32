@@ -112,8 +112,17 @@ j=                  @reg_w!(cpu, $ot, $$reg, r)
             end
         end
     end
-    
-j=  cpu.lazyf_op = $$op_type
+  
+#= Note on SBB instruction:
+    The way to affect RFLAGS by SBB can only be decided in runtime phase.
+    Therefore, if CF is not emitted in SBB runtime, we record this SBB as
+    SUB operation for future RFLAGS lazy computation.
+=#
+    if op_type == OP_SBB
+j=      cpu.lazyf_op = (cpu.rflags & CPU_CF == 0x0) ? OP_SUB : OP_SBB
+    else
+j=      cpu.lazyf_op = $$op_type
+    end
 j=  cpu.lazyf_width = $$ot_width
 j=  cpu.lazyf_op1 = a
 j=  cpu.lazyf_op1 = b

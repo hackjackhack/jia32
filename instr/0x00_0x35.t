@@ -97,8 +97,17 @@ j=              @reg_w!(cpu, UInt8, $$reg, r)
             end
         end
     end
-    
-j=  cpu.lazyf_op = $$op_type
+ 
+#= Note on ADC instruction:
+  The way to affect RFLAGS by ADC can be only decided in runtime phase.
+  Therefore, if CF is not emitted in ADC runtime, we record this ADC as
+  ADD operation for future RFLAGS lazy computation.
+=#
+    if op_type == OP_ADC
+j=      cpu.lazyf_op = (cpu.rflags & CPU_CF == 0x0) ? OP_ADD : OP_ADC
+    else
+j=      cpu.lazyf_op = $$op_type
+    end
 j=  cpu.lazyf_width = $$ot_width
 j=  cpu.lazyf_op1 = a
 j=  cpu.lazyf_op1 = b
