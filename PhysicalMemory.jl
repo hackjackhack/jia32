@@ -84,12 +84,13 @@ end
 
 # 64-bit 
 @noinline function io_r64(memory:: PhysicalMemory, addr:: UInt64)
-	seq = (addr >>> PAGE_BITS)
+	seq = ((addr % UInt32) >>> PAGE_BITS)
 	return memory.iomap_r64[@ZB(seq)](memory.iomap_dev[@ZB(seq)], addr)
 end
 
 @noinline function phys_read_u64(memory:: PhysicalMemory, addr:: UInt64)
-	@inbounds isIO = memory.iomap[@ZB(addr >>> PAGE_BITS)]
+	seq = ((addr % UInt32) >>> PAGE_BITS)
+	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
 	if !isIO
 		return unsafe_load(convert(Ptr{UInt64}, memory.baseptr + addr), 1)
 	end
@@ -98,12 +99,13 @@ end
 
 # 32-bit
 @noinline function io_r32(memory:: PhysicalMemory, addr:: UInt64)
-	seq = (addr >>> PAGE_BITS)
+	seq = ((addr % UInt32) >>> PAGE_BITS)
 	return memory.iomap_r32[@ZB(seq)](memory.iomap_dev[@ZB(seq)], addr)
 end
 
 function phys_read_u32(memory:: PhysicalMemory, addr:: UInt64)
-	@inbounds isIO = memory.iomap[@ZB(addr >>> PAGE_BITS)]
+	seq = ((addr % UInt32) >>> PAGE_BITS)
+	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
 	if !isIO
 		return unsafe_load(convert(Ptr{UInt32}, memory.baseptr + addr), 1)
 	end
@@ -112,12 +114,13 @@ end
 
 # 16-bit
 @noinline function io_r16(memory:: PhysicalMemory, addr:: UInt64)
-	seq = (addr >>> PAGE_BITS)
+	seq = ((addr % UInt32) >>> PAGE_BITS)
 	return memory.iomap_r16[@ZB(seq)](memory.iomap_dev[@ZB(seq)], addr)
 end
 
 function phys_read_u16(memory:: PhysicalMemory, addr:: UInt64)
-	@inbounds isIO = memory.iomap[@ZB(addr >>> PAGE_BITS)]
+	seq = ((addr % UInt32) >>> PAGE_BITS)
+	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
 	if !isIO
 		return unsafe_load(convert(Ptr{UInt16}, memory.baseptr + addr), 1);
 	end
@@ -126,12 +129,13 @@ end
 
 # 8-bit
 @noinline function io_r8(memory:: PhysicalMemory, addr:: UInt64)
-	seq = (addr >>> PAGE_BITS)
+	seq = ((addr % UInt32) >>> PAGE_BITS)
 	return UInt8(memory.iomap_r8[@ZB(seq)](memory.iomap_dev[@ZB(seq)], addr))
 end
 
 function phys_read_u8(memory:: PhysicalMemory, addr:: UInt64)
-	@inbounds isIO = memory.iomap[@ZB(addr >>> PAGE_BITS)]
+	seq = ((addr % UInt32) >>> PAGE_BITS)
+	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
 	if !isIO
 		return unsafe_load(convert(Ptr{UInt8}, memory.baseptr + addr), 1);
 	end
@@ -141,7 +145,8 @@ end
 # Copy physical RAM into buffer
 function phys_ram_to_buffer(addr:: UInt64, len:: UInt64, buf:: Ptr{UInt8})
 	while len > 0
-		@inbounds isIO = g_phys_mem.iomap[@ZB(addr >>> PAGE_BITS)]
+		seq = ((addr % UInt32) >>> PAGE_BITS)
+		@inbounds isIO = g_phys_mem.iomap[@ZB(seq)] && addr <= 0xffffffff
 		if isIO
 			unsafe_store!(buf, io_r8(g_phys_mem, addr), 1)
 			len -= 1
@@ -160,12 +165,13 @@ end
 # Write access functions
 # 64-bit 
 @noinline function io_w64(memory:: PhysicalMemory, addr:: UInt64, data:: UInt64)
-	seq = (addr >>> PAGE_BITS)
+	seq = ((addr % UInt32) >>> PAGE_BITS)
 	memory.iomap_w64[@ZB(seq)](memory.iomap_dev[@ZB(seq)], addr, data)
 end
 
 function phys_write_u64(memory:: PhysicalMemory, addr:: UInt64, data:: UInt64)
-	@inbounds isIO = memory.iomap[@ZB(addr >>> PAGE_BITS)]
+	seq = ((addr % UInt32) >>> PAGE_BITS)
+	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
 	if !isIO
 		unsafe_store!(convert(Ptr{UInt64}, memory.baseptr + addr), data, 1);
 		return
@@ -175,12 +181,13 @@ end
 
 # 32-bit
 @noinline function io_w32(memory:: PhysicalMemory, addr:: UInt64, data:: UInt32)
-	seq = (addr >>> PAGE_BITS)
+	seq = ((addr % UInt32) >>> PAGE_BITS)
 	memory.iomap_w32[@ZB(seq)](memory.iomap_dev[@ZB(seq)], addr, data)
 end
 
 function phys_write_u32(memory:: PhysicalMemory, addr:: UInt64, data:: UInt32)
-	@inbounds isIO = memory.iomap[@ZB(addr >>> PAGE_BITS)]
+	seq = ((addr % UInt32) >>> PAGE_BITS)
+	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
 	if !isIO
 		unsafe_store!(convert(Ptr{UInt32}, memory.baseptr + addr), data, 1);
 		return
@@ -190,12 +197,13 @@ end
 
 # 16-bit
 @noinline function io_w16(memory:: PhysicalMemory, addr:: UInt64, data:: UInt16)
-	seq = (addr >>> PAGE_BITS)
+	seq = ((addr % UInt32) >>> PAGE_BITS)
 	memory.iomap_w16[@ZB(seq)](memory.iomap_dev[@ZB(seq)], addr, data)
 end
 
 function phys_write_u16(memory:: PhysicalMemory, addr:: UInt64, data:: UInt16)
-	@inbounds isIO = memory.iomap[@ZB(addr >>> PAGE_BITS)]
+	seq = ((addr % UInt32) >>> PAGE_BITS)
+	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
 	if !isIO
 		unsafe_store!(convert(Ptr{UInt16}, memory.baseptr + addr), data, 1);
 		return
@@ -205,12 +213,13 @@ end
 
 # 8-bit
 @noinline function io_w8(memory:: PhysicalMemory, addr:: UInt64, data:: UInt8)
-	seq = (addr >>> PAGE_BITS)
+	seq = ((addr % UInt32) >>> PAGE_BITS)
 	memory.iomap_w8[@ZB(seq)](memory.iomap_dev[@ZB(seq)], addr, data)
 end
 
 function phys_write_u8(memory:: PhysicalMemory, addr:: UInt64, data:: UInt8)
-	@inbounds isIO = memory.iomap[@ZB(addr >>> PAGE_BITS)]
+	seq = ((addr % UInt32) >>> PAGE_BITS)
+	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
 	if !isIO
 		unsafe_store!(convert(Ptr{UInt8}, memory.baseptr + addr), data, 1);
 		return
@@ -221,7 +230,8 @@ end
 # Copy buffer into physical RAM
 function buffer_to_phys_ram(addr:: UInt64, len:: UInt64, buf:: Ptr{UInt8})
 	while len > 0
-		@inbounds isIO = g_phys_mem.iomap[@ZB(addr >>> PAGE_BITS)]
+		seq = ((addr % UInt32) >>> PAGE_BITS)
+		@inbounds isIO = g_phys_mem.iomap[@ZB(seq)] && addr <= 0xffffffff
 		if isIO
 			io_w8(g_phys_mem, addr, unsafe_load(buf, 1))
 			len -= 1

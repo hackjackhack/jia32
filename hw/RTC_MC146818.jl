@@ -21,7 +21,7 @@ type MC146818 <: IODev
 		mc146818.internal_c_obj = ccall(("RTC_c_init", HW_LIB_PATH),
 						Ptr{Void},
 						(Int32, Int32, Int32, Int32,),
-						Int32(base & 0xffffffff), year, month, day)
+						base % UInt32, year, month, day)
 		mc146818.portlist_w8[base] = mc146818_ioport_write
 		mc146818.portlist_w8[base + 1] = mc146818_ioport_write
 		mc146818.portlist_r8[base] = mc146818_ioport_read
