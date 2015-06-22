@@ -7,6 +7,19 @@
 	5. Normal lines appear exactly the same on both sides.
 	6. emu_ and jit_ will be added before any fetch
 	7. inc= XXXX will include the content in XXXX.t
+    8. To define a template for an opcode group, name the file with 0xYY_0xZZ.t
+       The corresponding 0xYY_0xZZ.jl will be generated to emulate these opcode
+
+       NOTE that the covered opcode are 0x[Y-Z] ~ 0x[Y-Z] instead of 0xYY ~ 0xZZ
+
+       For example: 
+       0x00_0x35.t will generate the instruction emulation code for
+           0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+           0x10, 0x11, 0x12, 0x13, 0x15, 0x15,
+                       ...
+
+           0x30, 0x31, 0x32, 0x33, 0x35, 0x35
+       opcodes.
 =# 
 
 function translate_template(lines)
@@ -49,8 +62,8 @@ function translate_template(lines)
 end
 
 function generate_emu_jit_code(opcode, lines)
-	emu_str = "function emu_$opcode(cpu:: CPU, mem:: PhysicalMemory)\n"
-	jit_str = "function jit_$opcode(cpu:: CPU, mem:: PhysicalMemory)\n"
+	emu_str = "function emu_$opcode(cpu:: CPU, mem:: PhysicalMemory, opc:: UInt16)\n"
+	jit_str = "function jit_$opcode(cpu:: CPU, mem:: PhysicalMemory, opc:: UInt16)\n"
 	jit_str *= "    jl_expr = quote end\n"
 
 	translated_code = translate_template(lines)
@@ -74,7 +87,7 @@ for fn in filter( x -> endswith(x, ".t"), readdir())
 	end
 
 	print("Synthesizing $instr_n.jl ...")
-	push!(opc_list, instr_n)
+ 	push!(opc_list, instr_n)
 
 	f = open(fn)
 	fjl = open(instr_n * ".jl", "w")
@@ -89,6 +102,8 @@ for fn in filter( x -> endswith(x, ".t"), readdir())
 	println("done")
 end
 
+
+
 print("Synthesizing opc_list.jl ...")
 f_inc = open("opc_list.jl", "w")
 for opc in opc_list
@@ -96,8 +111,28 @@ for opc in opc_list
 end
 write(f_inc, "function load_opcode(cpu:: CPU)\n")
 for opc in opc_list
-	write(f_inc, "\tcpu.emu_insn_tbl[$opc] = emu_$opc\n")
-	write(f_inc, "\tcpu.jit_insn_tbl[$opc] = jit_$opc\n")
+    if contains(opc, "_")
+        range  = split(replace(opc, "0x", ""), "_")
+
+        opc_st  = parse(UInt8, range[1], 16)
+        opc_stl = opc_st & 0x0F
+        opc_sth = (opc_st & 0xF0) >> 4
+
+        opc_ed  = parse(UInt8, range[2], 16)
+        opc_edl = opc_ed & 0x0F
+        opc_edh = (opc_ed & 0xF0) >> 4
+
+        # NOTE: the opcode is strictly increased
+        for i = opc_sth:opc_edh, j = opc_stl:opc_edl
+            # reunion as a opcode
+            k = "0x" * hex((i<<4) | j)
+            write(f_inc, "\tcpu.emu_insn_tbl[$k] = emu_$opc\n")
+        	write(f_inc, "\tcpu.jit_insn_tbl[$k] = jit_$opc\n")
+        end
+    else
+	    write(f_inc, "\tcpu.emu_insn_tbl[$opc] = emu_$opc\n")
+    	write(f_inc, "\tcpu.jit_insn_tbl[$opc] = jit_$opc\n")
+    end
 end
 write(f_inc, "end\n")
 close(f_inc)

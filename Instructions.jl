@@ -10,7 +10,7 @@ function gen_jl_block(cpu:: CPU, mem:: PhysicalMemory)
 	while true
 		b = jit_fetch8_advance(cpu, mem)
 	
-		l = cpu.jit_insn_tbl[b](cpu, mem)
+		l = cpu.jit_insn_tbl[b](cpu, mem, UInt16(b))
 		push!(jl_expr.args, l)
 		nb_instr += 1
 
