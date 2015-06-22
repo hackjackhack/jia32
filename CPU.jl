@@ -56,31 +56,31 @@ const OP_OR  = 4
 const OP_SBB = 5
 const OP_SUB = 6
 const OP_CMP = 7
+const OP_NB  = 8
 
 # CPU (R/E)FLAGS masks
 #   Status Flag
-const CPU_CF   = 0x0000000000000001
-const CPU_PF   = 0x0000000000000004
-const CPU_AF   = 0x0000000000000010
-const CPU_ZF   = 0x0000000000000040
-const CPU_SF   = 0x0000000000000080
-const CPU_OF   = 0x0000000000000800
+const CPU_CF   = UInt64(0b1)
+const CPU_PF   = UInt64(0b1) << 2
+const CPU_AF   = UInt64(0b1) << 4
+const CPU_ZF   = UInt64(0b1) << 6
+const CPU_SF   = UInt64(0b1) << 7
+const CPU_OF   = UInt64(0b1) << 11
 
 #   Control Flag
-const CPU_DF   = 0x0000000000000400
+const CPU_DF   = UInt64(0x01) << 10
 
 #   System Flag
-const CPU_TF   = 0x0000000000000100
-const CPU_IF   = 0x0000000000000200
-const CPU_IOPL = 0x0000000000003000
-const CPU_NT   = 0x0000000000004000
-const CPU_RF   = 0x0000000000010000
-const CPU_VM   = 0x0000000000020000
-const CPU_AC   = 0x0000000000040000
-const CPU_VIF  = 0x0000000000080000
-const CPU_VIP  = 0x0000000000100000
-const CPU_ID   = 0x0000000000200000
-
+const CPU_TF   = UInt64(0b1)  << 8
+const CPU_IF   = UInt64(0b1)  << 9
+const CPU_IOPL = UInt64(0b11) << 12
+const CPU_NT   = UInt64(0b1)  << 14
+const CPU_RF   = UInt64(0b1)  << 16
+const CPU_VM   = UInt64(0b1)  << 17
+const CPU_AC   = UInt64(0b1)  << 18
+const CPU_VIF  = UInt64(0b1)  << 19
+const CPU_VIP  = UInt64(0b1)  << 20
+const CPU_ID   = UInt64(0b1)  << 21
 
 IOFunc = Union(Bool, Function)
 
@@ -316,33 +316,7 @@ parity_table = [
     0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
 ]:: Array{UInt8, 1}
 
-function rflags_compute!(cpu:: CPU)
- 
-    eval(:(dt:: DataType = $symbol("UInt" * cpu.lazyf_width)))
-
-    if cpu.lazyf_op == OP_ADD
-        return rflags_compute_add(cpu, dt)
-    elseif cpu.lazyf_op == OP_ADC
-        return rflags_compute_adc(cpu, dt)
-    elseif cpu.lazyf_op == OP_SUB
-        return rflags_compute_sub(cpu, dt)
-    elseif cpu.lazyf_op == OP_SBB
-        return rflags_compute_sbb(cpu, dt)
-    elseif cpu.lazyf_op == OP_AND
-        return rflags_compute_logic(cpu, dt)
-    elseif cpu.lazyf_op == OP_XOR
-        return rflags_compute_logic(cpu, dt)
-    elseif cpu.lazyf_op == OP_OR
-        return rflags_compute_logic(cpu, dt)
-    elseif cpu.lazyf_op == OP_CMP
-        return rflags_compute_sub(cpu, dt)
-    else
-        # this should not be happened
-        error("Unknown operation for evaluate RFLAGS register")
-    end
-end
-
-# The following rflags_compute_XXX function should be called only by rflags_compute!
+# The following rflags_compute_XXX function should be called only via rflags_compute!
 function rflags_compute_add!(cpu:: CPU, dt:: DataType)
     
     data_max = typemax(dt)
@@ -371,6 +345,54 @@ function rflags_compute_adc!(cpu:: CPU, dt:: DataType)
     zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
     sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
     of::UInt32 = ((((cpu.lazyf_op1 $ cpu.lazyf_op2 $ 0xffffffff) & (cpu.lazyf_op1 $ dst)) >>> abs(8 - cpu.lazyf_width)) & 0x80) << 4
+    
+    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
+    cpu.rflags |= (cf | pf | af | zf | sf | of)
+end
+
+function rflags_compute_and!(cpu:: CPU, dt:: DataType)
+
+    data_max = typemax(dt)
+    dst::UInt64 = cpu.lazyf_op1 & cpu.lazyf_op2
+
+    cf::UInt32 = 0x0
+    pf::UInt32 = parity_table[(dst & 0xff) + 1]
+    af::UInt32 = 0x0
+    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
+    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
+    of::UInt32 = 0x0
+    
+    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
+    cpu.rflags |= (cf | pf | af | zf | sf | of)
+end
+
+function rflags_compute_xor!(cpu:: CPU, dt:: DataType)
+
+    data_max = typemax(dt)
+    dst::UInt64 = cpu.lazyf_op1 $ cpu.lazyf_op2
+
+    cf::UInt32 = 0x0
+    pf::UInt32 = parity_table[(dst & 0xff) + 1]
+    af::UInt32 = 0x0
+    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
+    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
+    of::UInt32 = 0x0
+    
+    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
+    cpu.rflags |= (cf | pf | af | zf | sf | of)
+end
+
+function rflags_compute_or!(cpu:: CPU, dt:: DataType)
+
+    data_max = typemax(dt)
+    dst::UInt64 = cpu.lazyf_op1 | cpu.lazyf_op2
+
+    cf::UInt32 = 0x0
+    pf::UInt32 = parity_table[(dst & 0xff) + 1]
+    af::UInt32 = 0x0
+    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
+    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
+    of::UInt32 = 0x0
     
     cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
     cpu.rflags |= (cf | pf | af | zf | sf | of)
@@ -408,19 +430,22 @@ function rflags_compute_sbb!(cpu:: CPU, dt:: DataType)
     cpu.rflags |= (cf | pf | af | zf | sf | of)  
 end
 
-function rflags_compute_logic!(cpu:: CPU, dt:: DataType)
+rfl_compute_handler = Array(Function, OP_NB)
+rfl_compute_dt      = Dict( 8=>UInt8, 16=>UInt16, 32=>UInt32, 64=>UInt64 )
 
-    data_max = typemax(dt)
- 
-    cf::UInt32 = 0x0
-    pf::UInt32 = parity_table[(dst & 0xff) + 1]
-    af::UInt32 = 0x0
-    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
-    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
-    of::UInt32 = 0x0
-    
-    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
-    cpu.rflags |= (cf | pf | af | zf | sf | of)
+rfl_compute_handler[@ZB(OP_ADD)] = rflags_compute_add!
+rfl_compute_handler[@ZB(OP_ADC)] = rflags_compute_adc!
+rfl_compute_handler[@ZB(OP_AND)] = rflags_compute_and!
+rfl_compute_handler[@ZB(OP_XOR)] = rflags_compute_xor!
+rfl_compute_handler[@ZB(OP_OR)]  = rflags_compute_or!
+rfl_compute_handler[@ZB(OP_SBB)] = rflags_compute_sbb!
+rfl_compute_handler[@ZB(OP_SUB)] = rflags_compute_sub!
+rfl_compute_handler[@ZB(OP_CMP)] = rflags_compute_sub!
+
+function rflags_compute!(cpu:: CPU)    
+    if cpu.lazyf_op < OP_NB
+        rfl_compute_handler[@ZB(cpu.lazyf_op)](cpu, rfl_compute_dt[cpu.lazyf_width])
+    end
 end
 
 # MMU functions
@@ -738,6 +763,8 @@ function loop(cpu:: CPU, mem:: PhysicalMemory)
 			block.exec(cpu, mem)
 			update_clock(g_clock, block.nb_instr)
 			@code_native(block.exec(cpu,mem))
+
+            rflags_compute!(cpu)
 		else
 			b = emu_fetch8_advance(cpu, mem)
 			println(hex(b))
@@ -767,19 +794,6 @@ function reset(cpu:: CPU)
 end
 
 function dump(cpu:: CPU)
-    #=
-	println("rax: $(hex(@reg_r_named(cpu, RAX)))")
-	println("rcx: $(hex(@reg_r_named(cpu, RCX)))")
-	println("rdx: $(hex(@reg_r_named(cpu, RDX)))")
-	println("rbx: $(hex(@reg_r_named(cpu, RBX)))")
-	println("rsp: $(hex(@reg_r_named(cpu, RSP)))")
-	println("rbp: $(hex(@reg_r_named(cpu, RBP)))")
-	println("rsi: $(hex(@reg_r_named(cpu, RSI)))")
-	println("rdi: $(hex(@reg_r_named(cpu, RDI)))")
-	println("")
-	println("rip: $(hex(@rip(cpu)))")
-    =#
-    
     # The x64-only CPU info. is not shown
     @printf( "RAX=%016x  RBX=%016x  RCX=%016x  RDX=%016x\nRSI=%016x  RDI=%016x  RBP=%016x  RSP=%016x\nRIP=%016x  RFL=%016x [%c%c%c%c%c%c%c]\n",
               @reg_r_named(cpu, RAX),
@@ -792,13 +806,13 @@ function dump(cpu:: CPU)
               @reg_r_named(cpu, RSP),
               @rip(cpu),
               cpu.rflags,
-              (cpu.rflags & CPU_DF == 0x1) ? 'D' : '-',
-              (cpu.rflags & CPU_OF == 0x1) ? 'O' : '-',
-              (cpu.rflags & CPU_SF == 0x1) ? 'S' : '-',
-              (cpu.rflags & CPU_ZF == 0x1) ? 'Z' : '-',
-              (cpu.rflags & CPU_AF == 0x1) ? 'A' : '-',
-              (cpu.rflags & CPU_PF == 0x1) ? 'P' : '-',
-              (cpu.rflags & CPU_CF == 0x1) ? 'C' : '-'
+              (cpu.rflags & CPU_DF != 0) ? 'D' : '-',
+              (cpu.rflags & CPU_OF != 0) ? 'O' : '-',
+              (cpu.rflags & CPU_SF != 0) ? 'S' : '-',
+              (cpu.rflags & CPU_ZF != 0) ? 'Z' : '-',
+              (cpu.rflags & CPU_AF != 0) ? 'A' : '-',
+              (cpu.rflags & CPU_PF != 0) ? 'P' : '-',
+              (cpu.rflags & CPU_CF != 0) ? 'C' : '-'
               )
 end
 

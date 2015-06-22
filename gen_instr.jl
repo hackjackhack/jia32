@@ -7,6 +7,19 @@
 	5. Normal lines appear exactly the same on both sides.
 	6. emu_ and jit_ will be added before any fetch
 	7. inc= XXXX will include the content in XXXX.t
+    8. To define a template for an opcode group, name the file with 0xYY_0xZZ.t
+       The corresponding 0xYY_0xZZ.jl will be generated to emulate these opcode
+
+       NOTE that the covered opcode are 0x[Y-Z] ~ 0x[Y-Z] instead of 0xYY ~ 0xZZ
+
+       For example: 
+       0x00_0x35.t will generate the instruction emulation code for
+           0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+           0x10, 0x11, 0x12, 0x13, 0x15, 0x15,
+                       ...
+
+           0x30, 0x31, 0x32, 0x33, 0x35, 0x35
+       opcodes.
 =# 
 
 function translate_template(lines)

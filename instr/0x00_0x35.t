@@ -110,6 +110,6 @@ j=      cpu.lazyf_op = $$op_type
     end
 j=  cpu.lazyf_width = $$ot_width
 j=  cpu.lazyf_op1 = a
-j=  cpu.lazyf_op1 = b
+j=  cpu.lazyf_op2 = b
 
 end
