@@ -1,5 +1,6 @@
 include("Common.jl")
 include("CPU.jl")
+include("Debug.jl")
 include("PhysicalMemory.jl")
 include("InstructionClock.jl")
 include("hw/EPROM.jl")

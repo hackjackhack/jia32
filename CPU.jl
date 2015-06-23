@@ -555,6 +555,11 @@ function rs8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
 	return reinterpret(Int8, ru8(cpu, mem, seg, offset))
 end
 
+function ru8_debug(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64)
+	phys_addr = logical_to_physical(cpu, seg, offset)
+	return phys_read_u8_debug(mem, phys_addr, data)
+end
+
 # -----64-----
 function wu64_crosspg(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt64)
 	for i = 0 : 7
@@ -565,17 +570,17 @@ end
 
 @noinline function wu64_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data::UInt64)
 	phys_addr = logical_to_physical(cpu, seg, offset)
-	return phys_write_u64(mem, phys_addr, data)
+	phys_write_u64(mem, phys_addr, data)
 end
 
 function wu64(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt64)
 	#if ((offset + 7) $ offset) & (~UInt64(0xfff)) == 0
 	if (offset & (UInt64(0xfff))) < 4089
 		# In the same page
-		return wu64_fast(cpu, mem, seg, offset, data)
+		wu64_fast(cpu, mem, seg, offset, data)
 	else
 		# Cross-page access
-		return wu64_crosspg(cpu, mem, seg, offset, data)
+		wu64_crosspg(cpu, mem, seg, offset, data)
 	end
 end
 
@@ -593,17 +598,17 @@ end
 
 @noinline function wu32_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data::UInt32)
 	phys_addr = logical_to_physical(cpu, seg, offset)
-	return phys_write_u32(mem, phys_addr, data)
+	phys_write_u32(mem, phys_addr, data)
 end
 
 function wu32(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt32)
 	#if ((offset + 7) $ offset) & (~UInt64(0xfff)) == 0
 	if (offset & (UInt64(0xfff))) < 4093
 		# In the same page
-		return wu32_fast(cpu, mem, seg, offset, data)
+		wu32_fast(cpu, mem, seg, offset, data)
 	else
 		# Cross-page access
-		return wu32_crosspg(cpu, mem, seg, offset, data)
+		wu32_crosspg(cpu, mem, seg, offset, data)
 	end
 end
 
@@ -621,17 +626,17 @@ end
 
 @noinline function wu16_fast(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data::UInt16)
 	phys_addr = logical_to_physical(cpu, seg, offset)
-	return phys_write_u16(mem, phys_addr, data)
+	phys_write_u16(mem, phys_addr, data)
 end
 
 function wu16(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt16)
 	#if ((offset + 7) $ offset) & (~UInt64(0xfff)) == 0
 	if (offset & (UInt64(0xfff))) < 4095
 		# In the same page
-		return wu16_fast(cpu, mem, seg, offset, data)
+		wu16_fast(cpu, mem, seg, offset, data)
 	else
 		# Cross-page access
-		return wu16_crosspg(cpu, mem, seg, offset, data)
+		wu16_crosspg(cpu, mem, seg, offset, data)
 	end
 end
 
@@ -642,11 +647,16 @@ end
 #-----8-----
 function wu8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt8)
 	phys_addr = logical_to_physical(cpu, seg, offset)
-	return phys_write_u8(mem, phys_addr, data)
+	phys_write_u8(mem, phys_addr, data)
 end
 
 function ws8(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: Int8)
 	wu8(cpu, mem, seg, offset, reinterpret(UInt8, data))
+end
+
+function wu8_debug(cpu:: CPU, mem:: PhysicalMemory, seg:: Int, offset:: UInt64, data:: UInt8)
+	phys_addr = logical_to_physical(cpu, seg, offset)
+	phys_write_u8_debug(mem, phys_addr, data)
 end
 
 # Port I/O system
@@ -764,7 +774,7 @@ function loop(cpu:: CPU, mem:: PhysicalMemory)
 			update_clock(g_clock, block.nb_instr)
 			@code_native(block.exec(cpu,mem))
 
-            rflags_compute!(cpu)
+			rflags_compute!(cpu)
 		else
 			b = emu_fetch8_advance(cpu, mem)
 			println(hex(b))

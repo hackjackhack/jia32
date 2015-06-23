@@ -1,9 +1,20 @@
 all:
 	./julia gen_instr.jl
 	make -C hw/hw_qemu
+	make -C deps/
 
 clean:
-	rm instr/*.jl hw/hw_qemu/hw_qemu.so
+	rm -rf instr/*.jl hw/hw_qemu/hw_qemu.so
+
+depsupdate:
+	make -C deps/ update
+
+depsclean:
+	make -C deps/ clean
+
+superclean:
+	rm -rf instr/*.jl hw/hw_qemu/hw_qemu.so
+	make -C deps/ superclean
 
 test: FORCE
 	./julia test/CPU_test.jl

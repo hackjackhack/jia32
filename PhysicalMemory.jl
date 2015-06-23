@@ -142,6 +142,12 @@ function phys_read_u8(memory:: PhysicalMemory, addr:: UInt64)
 	return io_r8(memory, addr)
 end
 
+function phys_read_u8_debug(memory:: PhysicalMemory, addr:: UInt64)
+	# Bypass I/O mapping
+	return memory.array[@ZB(addr)];
+end
+
+
 # Copy physical RAM into buffer
 function phys_ram_to_buffer(addr:: UInt64, len:: UInt64, buf:: Ptr{UInt8})
 	while len > 0
@@ -225,6 +231,11 @@ function phys_write_u8(memory:: PhysicalMemory, addr:: UInt64, data:: UInt8)
 		return
 	end
 	io_w8(memory, addr, data)
+end
+
+function phys_write_u8_debug(memory:: PhysicalMemory, addr:: UInt64, data:: UInt8)
+	# Bypass I/O mapping
+	memory.array[@ZB(addr)] = data;
 end
 
 # Copy buffer into physical RAM

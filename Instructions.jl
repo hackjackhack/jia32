@@ -68,7 +68,7 @@ function jit_fetch8_advance(cpu:: CPU, mem:: PhysicalMemory)
 	b:: UInt8
 	if (cpu.address_size == 16)
 		b = ru8(cpu, mem, CS, cpu.jit_rip & 0xffff)
-		cpu.jit_rip = (cpu.jit_rip + 1) & 0xffff
+		cpu.jit_rip = (cpu.jit_rip + 1) & 0xffff 
 		cpu.jit_ip_addend += 1
 		return b
 	end
@@ -89,7 +89,7 @@ function jit_fetch16_advance(cpu:: CPU, mem:: PhysicalMemory)
 	b:: UInt16
 	if (cpu.address_size == 16)
 		b = ru16(cpu, mem, CS, cpu.jit_rip & 0xffff)
-		cpu.jit_rip = (cpu.jit_rip + 2) & 0xffff
+		cpu.jit_rip = (cpu.jit_rip + 2) & 0xffff 
 		cpu.jit_ip_addend += 2
 		return b
 	end

@@ -111,6 +111,8 @@ function main()
 	connect_dev_to_irq(i8259, mc146818, 8)
 
 	reset(cpu)
+	println("lazy: $(cpu.lazyf_width)")
+	#assemble_at_ip(cpu, physmem, "mov eax,ebx")
 	loop(cpu, physmem)
 end
 
