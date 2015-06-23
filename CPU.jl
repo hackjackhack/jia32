@@ -59,7 +59,7 @@ const OP_CMP = 7
 const OP_NB  = 8
 
 # CPU (R/E)FLAGS masks
-#   Status Flag
+#	Status Flag
 const CPU_CF   = UInt64(0b1)
 const CPU_PF   = UInt64(0b1) << 2
 const CPU_AF   = UInt64(0b1) << 4
@@ -67,10 +67,10 @@ const CPU_ZF   = UInt64(0b1) << 6
 const CPU_SF   = UInt64(0b1) << 7
 const CPU_OF   = UInt64(0b1) << 11
 
-#   Control Flag
+#	Control Flag
 const CPU_DF   = UInt64(0x01) << 10
 
-#   System Flag
+#	System Flag
 const CPU_TF   = UInt64(0b1)  << 8
 const CPU_IF   = UInt64(0b1)  << 9
 const CPU_IOPL = UInt64(0b11) << 12
@@ -181,6 +181,9 @@ type CPU
 		fill!(cpu.port_iomap_w16, false)
 		fill!(cpu.port_iomap_w8,  false)
 
+		# rflags lazy-computing init
+		cpu.lazyf_op = OP_NB
+
 		return cpu
 	end
 end
@@ -282,156 +285,156 @@ end
 
 # Flag register lazy-update function
 parity_table = [ 
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
-    0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x04, 0x00, 0x00, 0x04, 0x00, 0x04, 0x04, 0x00,
+	0x00, 0x04, 0x04, 0x00, 0x04, 0x00, 0x00, 0x04,
 ]:: Array{UInt8, 1}
 
 # The following rflags_compute_XXX function should be called only via rflags_compute!
 function rflags_compute_add!(cpu:: CPU, dt:: DataType)
-    
-    data_max = typemax(dt)
-    dst::UInt64 = cpu.lazyf_op1 + cpu.lazyf_op2
-     
-    cf::UInt32 = ((dst & data_max) < cpu.lazyf_op1)? 0x1 : 0x0
-    pf::UInt32 = parity_table[(dst & 0xff) + 1]
-    af::UInt32 = (dst $ cpu.lazyf_op1 $ cpu.lazyf_op2) & 0x10
-    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
-    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
-    of::UInt32 = ((((cpu.lazyf_op1 $ cpu.lazyf_op2 $ 0xffffffff) & (cpu.lazyf_op1 $ dst)) >>> abs(8 - cpu.lazyf_width)) & 0x80) << 4
-    
-    # clear & assign the affected flag: Carry, Parity, Adjust, Zero, Sign, Overflow
-    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
-    cpu.rflags |= (cf | pf | af | zf | sf | of)
+	
+	data_max = typemax(dt)
+	dst::UInt64 = cpu.lazyf_op1 + cpu.lazyf_op2
+	 
+	cf::UInt32 = ((dst & data_max) < cpu.lazyf_op1)? 0x1 : 0x0
+	pf::UInt32 = parity_table[(dst & 0xff) + 1]
+	af::UInt32 = (dst $ cpu.lazyf_op1 $ cpu.lazyf_op2) & 0x10
+	zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
+	sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
+	of::UInt32 = ((((cpu.lazyf_op1 $ cpu.lazyf_op2 $ 0xffffffff) & (cpu.lazyf_op1 $ dst)) >>> abs(8 - cpu.lazyf_width)) & 0x80) << 4
+	
+	# clear & assign the affected flag: Carry, Parity, Adjust, Zero, Sign, Overflow
+	cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
+	cpu.rflags |= (cf | pf | af | zf | sf | of)
 end
 
 function rflags_compute_adc!(cpu:: CPU, dt:: DataType)
 
-    data_max = typemax(dt)
-    dst::UInt64 = cpu.lazyf_op1 + cpu.lazyf_op2 + 1
-     
-    cf::UInt32 = ((dst & data_max) <= cpu.lazyf_op1)? 0x1 : 0x0
-    pf::UInt32 = parity_table[(dst & 0xff) + 1]
-    af::UInt32 = (dst $ cpu.lazyf_op1 $ cpu.lazyf_op2) & 0x10
-    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
-    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
-    of::UInt32 = ((((cpu.lazyf_op1 $ cpu.lazyf_op2 $ 0xffffffff) & (cpu.lazyf_op1 $ dst)) >>> abs(8 - cpu.lazyf_width)) & 0x80) << 4
-    
-    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
-    cpu.rflags |= (cf | pf | af | zf | sf | of)
+	data_max = typemax(dt)
+	dst::UInt64 = cpu.lazyf_op1 + cpu.lazyf_op2 + 1
+	 
+	cf::UInt32 = ((dst & data_max) <= cpu.lazyf_op1)? 0x1 : 0x0
+	pf::UInt32 = parity_table[(dst & 0xff) + 1]
+	af::UInt32 = (dst $ cpu.lazyf_op1 $ cpu.lazyf_op2) & 0x10
+	zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
+	sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
+	of::UInt32 = ((((cpu.lazyf_op1 $ cpu.lazyf_op2 $ 0xffffffff) & (cpu.lazyf_op1 $ dst)) >>> abs(8 - cpu.lazyf_width)) & 0x80) << 4
+	
+	cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
+	cpu.rflags |= (cf | pf | af | zf | sf | of)
 end
 
 function rflags_compute_and!(cpu:: CPU, dt:: DataType)
 
-    data_max = typemax(dt)
-    dst::UInt64 = cpu.lazyf_op1 & cpu.lazyf_op2
+	data_max = typemax(dt)
+	dst::UInt64 = cpu.lazyf_op1 & cpu.lazyf_op2
 
-    cf::UInt32 = 0x0
-    pf::UInt32 = parity_table[(dst & 0xff) + 1]
-    af::UInt32 = 0x0
-    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
-    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
-    of::UInt32 = 0x0
-    
-    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
-    cpu.rflags |= (cf | pf | af | zf | sf | of)
+	cf::UInt32 = 0x0
+	pf::UInt32 = parity_table[(dst & 0xff) + 1]
+	af::UInt32 = 0x0
+	zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
+	sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
+	of::UInt32 = 0x0
+	
+	cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
+	cpu.rflags |= (cf | pf | af | zf | sf | of)
 end
 
 function rflags_compute_xor!(cpu:: CPU, dt:: DataType)
 
-    data_max = typemax(dt)
-    dst::UInt64 = cpu.lazyf_op1 $ cpu.lazyf_op2
+	data_max = typemax(dt)
+	dst::UInt64 = cpu.lazyf_op1 $ cpu.lazyf_op2
 
-    cf::UInt32 = 0x0
-    pf::UInt32 = parity_table[(dst & 0xff) + 1]
-    af::UInt32 = 0x0
-    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
-    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
-    of::UInt32 = 0x0
-    
-    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
-    cpu.rflags |= (cf | pf | af | zf | sf | of)
+	cf::UInt32 = 0x0
+	pf::UInt32 = parity_table[(dst & 0xff) + 1]
+	af::UInt32 = 0x0
+	zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
+	sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
+	of::UInt32 = 0x0
+	
+	cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
+	cpu.rflags |= (cf | pf | af | zf | sf | of)
 end
 
 function rflags_compute_or!(cpu:: CPU, dt:: DataType)
 
-    data_max = typemax(dt)
-    dst::UInt64 = cpu.lazyf_op1 | cpu.lazyf_op2
+	data_max = typemax(dt)
+	dst::UInt64 = cpu.lazyf_op1 | cpu.lazyf_op2
 
-    cf::UInt32 = 0x0
-    pf::UInt32 = parity_table[(dst & 0xff) + 1]
-    af::UInt32 = 0x0
-    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
-    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
-    of::UInt32 = 0x0
-    
-    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
-    cpu.rflags |= (cf | pf | af | zf | sf | of)
+	cf::UInt32 = 0x0
+	pf::UInt32 = parity_table[(dst & 0xff) + 1]
+	af::UInt32 = 0x0
+	zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
+	sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
+	of::UInt32 = 0x0
+	
+	cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
+	cpu.rflags |= (cf | pf | af | zf | sf | of)
 end
 
 function rflags_compute_sub!(cpu:: CPU, dt:: DataType)
  
-    data_max = typemax(dt)
-    dst::UInt64 = cpu.lazyf_op1 - cpu.lazyf_op2
-     
-    cf::UInt32 = (cpu.lazyf_op1 < cpu.lazyf_op2)? 0x1 : 0x0
-    pf::UInt32 = parity_table[(dst & 0xff) + 1]
-    af::UInt32 = (dst $ cpu.lazyf_op1 $ cpu.lazyf_op2) & 0x10
-    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
-    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
-    of::UInt32 = ((((cpu.lazyf_op1 $ cpu.lazyf_op2) & (cpu.lazyf_op1 $ dst)) >>> abs(8 - cpu.lazyf_width)) & 0x80) << 4
-    
-    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
-    cpu.rflags |= (cf | pf | af | zf | sf | of)
+	data_max = typemax(dt)
+	dst::UInt64 = cpu.lazyf_op1 - cpu.lazyf_op2
+	 
+	cf::UInt32 = (cpu.lazyf_op1 < cpu.lazyf_op2)? 0x1 : 0x0
+	pf::UInt32 = parity_table[(dst & 0xff) + 1]
+	af::UInt32 = (dst $ cpu.lazyf_op1 $ cpu.lazyf_op2) & 0x10
+	zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
+	sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
+	of::UInt32 = ((((cpu.lazyf_op1 $ cpu.lazyf_op2) & (cpu.lazyf_op1 $ dst)) >>> abs(8 - cpu.lazyf_width)) & 0x80) << 4
+	
+	cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
+	cpu.rflags |= (cf | pf | af | zf | sf | of)
 end
 
 function rflags_compute_sbb!(cpu:: CPU, dt:: DataType)
 
-    data_max = typemax(dt)
-    dst::UInt64 = cpu.lazyf_op1 - cpu.lazyf_op2 - 1
-     
-    cf::UInt32 = (cpu.lazyf_op1 <= cpu.lazyf_op2)? 0x1 : 0x0
-    pf::UInt32 = parity_table[(dst & 0xff) + 1]
-    af::UInt32 = (dst $ cpu.lazyf_op1 $ cpu.lazyf_op2) & 0x10
-    zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
-    sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
-    of::UInt32 = ((((cpu.lazyf_op1 $ cpu.lazyf_op2) & (cpu.lazyf_op1 $ dst)) >>> abs(8 - cpu.lazyf_width)) & 0x80) << 4
-    
-    cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
-    cpu.rflags |= (cf | pf | af | zf | sf | of)  
+	data_max = typemax(dt)
+	dst::UInt64 = cpu.lazyf_op1 - cpu.lazyf_op2 - 1
+	 
+	cf::UInt32 = (cpu.lazyf_op1 <= cpu.lazyf_op2)? 0x1 : 0x0
+	pf::UInt32 = parity_table[(dst & 0xff) + 1]
+	af::UInt32 = (dst $ cpu.lazyf_op1 $ cpu.lazyf_op2) & 0x10
+	zf::UInt32 = ((dst & data_max) == 0x0)? 0x40: 0x0
+	sf::UInt32 = (dst >>> abs(8 - cpu.lazyf_width)) & 0x80
+	of::UInt32 = ((((cpu.lazyf_op1 $ cpu.lazyf_op2) & (cpu.lazyf_op1 $ dst)) >>> abs(8 - cpu.lazyf_width)) & 0x80) << 4
+	
+	cpu.rflags &= ~(CPU_CF | CPU_PF | CPU_AF | CPU_ZF | CPU_SF | CPU_OF)
+	cpu.rflags |= (cf | pf | af | zf | sf | of)  
 end
 
 rfl_compute_handler = Array(Function, OP_NB)
-rfl_compute_dt      = Dict( 8=>UInt8, 16=>UInt16, 32=>UInt32, 64=>UInt64 )
+rfl_compute_dt		= Dict( 8=>UInt8, 16=>UInt16, 32=>UInt32, 64=>UInt64 )
 
 rfl_compute_handler[@ZB(OP_ADD)] = rflags_compute_add!
 rfl_compute_handler[@ZB(OP_ADC)] = rflags_compute_adc!
@@ -442,10 +445,12 @@ rfl_compute_handler[@ZB(OP_SBB)] = rflags_compute_sbb!
 rfl_compute_handler[@ZB(OP_SUB)] = rflags_compute_sub!
 rfl_compute_handler[@ZB(OP_CMP)] = rflags_compute_sub!
 
-function rflags_compute!(cpu:: CPU)    
-    if cpu.lazyf_op < OP_NB
-        rfl_compute_handler[@ZB(cpu.lazyf_op)](cpu, rfl_compute_dt[cpu.lazyf_width])
-    end
+function rflags_compute!(cpu:: CPU)
+	
+	# perform rflags computation only if the previous operation is recognizable
+	if cpu.lazyf_op < OP_NB
+		rfl_compute_handler[@ZB(cpu.lazyf_op)](cpu, rfl_compute_dt[cpu.lazyf_width])
+	end
 end
 
 # MMU functions
@@ -799,31 +804,31 @@ function reset(cpu:: CPU)
 	@sreg_base!(cpu, SS, 0x0)
 	@reg_w_named!(cpu, RSP, 0)
 
-    # Volume 3, Chapter 9.1.2, Table 9-1
-    cpu.rflags = UInt64(0x02)
+	# Volume 3, Chapter 9.1.2, Table 9-1
+	cpu.rflags = UInt64(0x02)
 end
 
 function dump(cpu:: CPU)
-    # The x64-only CPU info. is not shown
-    @printf( "RAX=%016x  RBX=%016x  RCX=%016x  RDX=%016x\nRSI=%016x  RDI=%016x  RBP=%016x  RSP=%016x\nRIP=%016x  RFL=%016x [%c%c%c%c%c%c%c]\n",
-              @reg_r_named(cpu, RAX),
-              @reg_r_named(cpu, RBX),
-              @reg_r_named(cpu, RCX),
-              @reg_r_named(cpu, RDX),
-              @reg_r_named(cpu, RSI),
-              @reg_r_named(cpu, RDI),
-              @reg_r_named(cpu, RBP),
-              @reg_r_named(cpu, RSP),
-              @rip(cpu),
-              cpu.rflags,
-              (cpu.rflags & CPU_DF != 0) ? 'D' : '-',
-              (cpu.rflags & CPU_OF != 0) ? 'O' : '-',
-              (cpu.rflags & CPU_SF != 0) ? 'S' : '-',
-              (cpu.rflags & CPU_ZF != 0) ? 'Z' : '-',
-              (cpu.rflags & CPU_AF != 0) ? 'A' : '-',
-              (cpu.rflags & CPU_PF != 0) ? 'P' : '-',
-              (cpu.rflags & CPU_CF != 0) ? 'C' : '-'
-              )
+	# The x64-only CPU info. is not shown
+	@printf( "RAX=%016x  RBX=%016x	RCX=%016x  RDX=%016x\nRSI=%016x  RDI=%016x	RBP=%016x  RSP=%016x\nRIP=%016x  RFL=%016x [%c%c%c%c%c%c%c]\n",
+			  @reg_r_named(cpu, RAX),
+			  @reg_r_named(cpu, RBX),
+			  @reg_r_named(cpu, RCX),
+			  @reg_r_named(cpu, RDX),
+			  @reg_r_named(cpu, RSI),
+			  @reg_r_named(cpu, RDI),
+			  @reg_r_named(cpu, RBP),
+			  @reg_r_named(cpu, RSP),
+			  @rip(cpu),
+			  cpu.rflags,
+			  (cpu.rflags & CPU_DF != 0) ? 'D' : '-',
+			  (cpu.rflags & CPU_OF != 0) ? 'O' : '-',
+			  (cpu.rflags & CPU_SF != 0) ? 'S' : '-',
+			  (cpu.rflags & CPU_ZF != 0) ? 'Z' : '-',
+			  (cpu.rflags & CPU_AF != 0) ? 'A' : '-',
+			  (cpu.rflags & CPU_PF != 0) ? 'P' : '-',
+			  (cpu.rflags & CPU_CF != 0) ? 'C' : '-'
+			  )
 end
 
 function interrupt_for_c_hw(opaque:: Ptr{Void}, irq:: Cint, level:: Cint)
