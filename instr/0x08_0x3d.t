@@ -107,7 +107,7 @@ j=						rflags_compute!(cpu)
 j=						b += (cpu.rflags & CPU_CF)
 					end
 j=					r = $$op_func(a, b)
-j=					@reg_w!(cpu, $ot, $$reg, r)
+j=					@reg_w!(cpu, $$ot, $$reg, r)
 				end
 			end
 		end
