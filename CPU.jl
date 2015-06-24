@@ -762,31 +762,37 @@ end
 require("Instructions.jl")
 
 # CPU functions
+function exec(cpu:: CPU, mem:: PhysicalMemory)
+	println("----- Start -----")
+	println(hex(@sreg(cpu, CS)))
+	println(hex(@sreg_base(cpu, CS)))
+	println(hex(@eip(cpu)))
+	
+	dump(cpu)
+	cpu.segment = -1;
+	if cpu.jit_enabled
+		block = find_jl_block(cpu, mem)
+		block.nb_exec += 1
+		block.exec(cpu, mem)
+		update_clock(g_clock, block.nb_instr)
+		@code_native(block.exec(cpu,mem))
+
+		rflags_compute!(cpu)
+	else
+		b = emu_fetch8_advance(cpu, mem)
+		println(hex(b))
+		cpu.emu_insn_tbl[b](cpu, mem, UInt16(b))
+		update_clock(g_clock, UInt64(1))
+	end
+	println("  -------------")
+	dump(cpu)
+	println("----- End -----")
+end
+
 function loop(cpu:: CPU, mem:: PhysicalMemory)
 	local b:: UInt8
 	while true
-		println("----- Cycle Start -----")
-		println(hex(@sreg(cpu, CS)))
-		println(hex(@sreg_base(cpu, CS)))
-		println(hex(@eip(cpu)))
-		
-		dump(cpu)
-		cpu.segment = -1;
-		if cpu.jit_enabled
-			block = find_jl_block(cpu, mem)
-			block.nb_exec += 1
-			block.exec(cpu, mem)
-			update_clock(g_clock, block.nb_instr)
-			@code_native(block.exec(cpu,mem))
-
-			rflags_compute!(cpu)
-		else
-			b = emu_fetch8_advance(cpu, mem)
-			println(hex(b))
-			cpu.emu_insn_tbl[b](cpu, mem, UInt16(b))
-			update_clock(g_clock, UInt64(1))
-		end
-		println("----- Cycle End -----")
+		exec(cpu, mem)
 	end
 end
 

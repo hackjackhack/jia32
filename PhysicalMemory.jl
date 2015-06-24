@@ -75,10 +75,15 @@ function register_phys_io_map(
 	device.mmiobase = start
 end
 
-# The following R/W functions should be only called by MMU functions.
-# E.g. ru64, ru43, wu64, etc. Therefore, it is assumed the cross-page
-# case has been taken care by MMU functions. Never call these functions
-# unless the above assumption is satisfied.
+#=
+  The following R/W functions should be only called by MMU functions.
+  E.g. ru64, ru43, wu64, etc. Therefore, it is assumed the cross-page
+  case has been taken care by MMU functions. Never call these functions
+  unless the above assumption is satisfied.
+
+  If address exceed physical size, we let I/O system to take over
+  since it eventually throws exception.
+=#
 
 # Read access functions
 
@@ -91,7 +96,7 @@ end
 @noinline function phys_read_u64(memory:: PhysicalMemory, addr:: UInt64)
 	seq = ((addr % UInt32) >>> PAGE_BITS)
 	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
-	if !isIO
+	if !isIO && addr < memory.size
 		return unsafe_load(convert(Ptr{UInt64}, memory.baseptr + addr), 1)
 	end
 	return UInt64(io_r64(memory, addr))
@@ -106,7 +111,7 @@ end
 function phys_read_u32(memory:: PhysicalMemory, addr:: UInt64)
 	seq = ((addr % UInt32) >>> PAGE_BITS)
 	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
-	if !isIO
+	if !isIO && addr < memory.size
 		return unsafe_load(convert(Ptr{UInt32}, memory.baseptr + addr), 1)
 	end
 	return UInt32(io_r32(memory, addr))
@@ -121,7 +126,7 @@ end
 function phys_read_u16(memory:: PhysicalMemory, addr:: UInt64)
 	seq = ((addr % UInt32) >>> PAGE_BITS)
 	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
-	if !isIO
+	if !isIO && addr < memory.size
 		return unsafe_load(convert(Ptr{UInt16}, memory.baseptr + addr), 1);
 	end
 	return UInt16(io_r16(memory, addr))
@@ -136,7 +141,7 @@ end
 function phys_read_u8(memory:: PhysicalMemory, addr:: UInt64)
 	seq = ((addr % UInt32) >>> PAGE_BITS)
 	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
-	if !isIO
+	if !isIO && addr < memory.size
 		return unsafe_load(convert(Ptr{UInt8}, memory.baseptr + addr), 1);
 	end
 	return io_r8(memory, addr)
@@ -178,7 +183,7 @@ end
 function phys_write_u64(memory:: PhysicalMemory, addr:: UInt64, data:: UInt64)
 	seq = ((addr % UInt32) >>> PAGE_BITS)
 	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
-	if !isIO
+	if !isIO && addr < memory.size
 		unsafe_store!(convert(Ptr{UInt64}, memory.baseptr + addr), data, 1);
 		return
 	end
@@ -194,7 +199,7 @@ end
 function phys_write_u32(memory:: PhysicalMemory, addr:: UInt64, data:: UInt32)
 	seq = ((addr % UInt32) >>> PAGE_BITS)
 	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
-	if !isIO
+	if !isIO && addr < memory.size
 		unsafe_store!(convert(Ptr{UInt32}, memory.baseptr + addr), data, 1);
 		return
 	end
@@ -210,7 +215,7 @@ end
 function phys_write_u16(memory:: PhysicalMemory, addr:: UInt64, data:: UInt16)
 	seq = ((addr % UInt32) >>> PAGE_BITS)
 	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
-	if !isIO
+	if !isIO && addr < memory.size
 		unsafe_store!(convert(Ptr{UInt16}, memory.baseptr + addr), data, 1);
 		return
 	end
@@ -226,7 +231,7 @@ end
 function phys_write_u8(memory:: PhysicalMemory, addr:: UInt64, data:: UInt8)
 	seq = ((addr % UInt32) >>> PAGE_BITS)
 	@inbounds isIO = memory.iomap[@ZB(seq)] && addr <= 0xffffffff
-	if !isIO
+	if !isIO && addr < memory.size
 		unsafe_store!(convert(Ptr{UInt8}, memory.baseptr + addr), data, 1);
 		return
 	end
