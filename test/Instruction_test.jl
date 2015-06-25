@@ -7,11 +7,15 @@ function test_instr(cpu:: CPU, mem:: PhysicalMemory, instr:: String, mode:: Type
 	push!(test_expr.args, :(exec(cpu, mem)))
 	push!(test_expr.args, post)
 	@eval t(cpu:: CPU, mem::PhysicalMemory) = $test_expr
-	t(cpu, mem)
+	return t(cpu, mem)
 end
 
 macro T16(instr, pre, post)
-	:(test_instr(cpu, mem, $instr, UInt16, $pre, $post))
+	quote
+		if !test_instr(cpu, mem, $instr, UInt16, $pre, $post) 
+			error("Instruction test " * $instr * " failed.")
+		end
+	end
 end
 
 macro AL() :(@reg_r_named(cpu, AL)) end
@@ -64,7 +68,9 @@ function main()
 =#
 
 	# Test case starts here
-	@T16("xor ax, bx", :(a = @AX() $ @BX()), :(println(a == @AX())))
+	@T16("xor ax, bx", :(a = @AX() $ @BX()), :(a == @AX()))
+	@T16("add ax, cx", :(a = (UInt32(@AX()) + UInt32(@CX())) % UInt16), :(a == @AX()))
+	println("OK")
 end
 
 main()

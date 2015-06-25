@@ -20,22 +20,22 @@ if cpu.operand_size == 16
 			ot		 = UInt8
 			ot_width = 8
 
-			f_fetch = fetch8_advance
+			f_fch = fetch8_advance
 		else
 			ot		 = UInt16
 			ot_width = 16
 
-			f_fetch = fetch16_advance
+			f_fch = fetch16_advance
 		end
 
-		imm = f_fetch(cpu, mem)
-j=		b = $$imm
+		imm = f_fch(cpu, mem)
+j=		b = UInt64($$imm)
 		if op_type == OP_ADC 
 j=			rflags_compute!(cpu)
 j=			b += (cpu.rflags & CPU_CF)
 		end
 
-j=		a = @reg_r(cpu, $$ot, 0)
+j=		a = UInt64(@reg_r(cpu, $$ot, 0))
 j=		r = $$op_func(a, b)
 j=		@reg_w!(cpu, $$ot, 0, r)
 	else
@@ -57,8 +57,8 @@ call= modrm modrm,mod,rm,reg,disp,is_reg,ev_reg,t_addr,seg
 				ot_width = 16
 			end
 
-j=			a = @reg_r(cpu, $$ot, $$r_dst)
-j=			b = @reg_r(cpu, $$ot, $$r_src)
+j=			a = UInt64(@reg_r(cpu, $$ot, $$r_dst))
+j=			b = UInt64(@reg_r(cpu, $$ot, $$r_src))
 			if op_type == OP_ADC 
 j=				rflags_compute!(cpu)		
 j=				b += (cpu.rflags & CPU_CF)
@@ -82,8 +82,8 @@ j=			@reg_w!(cpu, $$ot, $$r_dst, r)
 			end
 
 			# in this opcode group, each operation is commutative
-j=			a = $$f_ru(cpu, mem, $$seg, t_addr)
-j=			b = @reg_r(cpu, $$ot, $$reg)
+j=			a = UInt64($$f_ru(cpu, mem, $$seg, t_addr))
+j=			b = UInt64(@reg_r(cpu, $$ot, $$reg))
 j=			r = $$op_func(a, b)
 			if op_type == OP_ADC 
 j=				rflags_compute!(cpu)		
@@ -99,9 +99,9 @@ j=				@reg_w!(cpu, UInt8, $$reg, r)
 	end
  
 #= Note on ADC instruction:
-  The way to affect RFLAGS by ADC can be only decided in runtime phase.
-  Therefore, if CF is not emitted in ADC runtime, we record this ADC as
-  ADD operation for future RFLAGS lazy computation.
+	If CF is not set when ADC executes, it is simply a ADD instruction.
+	Therefore, at runtime we check CF to decide using ADC or ADD for 
+        future RFLAGS lazy computation.
 =#
 	if op_type == OP_ADC
 j=		cpu.lazyf_op = (cpu.rflags & CPU_CF == 0x0) ? OP_ADD : OP_ADC

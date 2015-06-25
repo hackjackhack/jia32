@@ -4,27 +4,31 @@ function gen_jl_block(cpu:: CPU, mem:: PhysicalMemory)
 	jl_expr = quote end
 	cpu.jit_rip = @rip(cpu) 
 	cpu.jit_eot = false
-	cpu.jit_ip_addend = 0
+	cpu.this_instr_len = 0
 
 	nb_instr::UInt64 = 0
 	while true
 		b = jit_fetch8_advance(cpu, mem)
+		println(hex(b))
 	
-		l = cpu.jit_insn_tbl[b](cpu, mem, UInt16(b))
-		push!(jl_expr.args, l)
+		cpu.jit_insn_tbl[b](cpu, mem, UInt16(b), jl_expr)
+		#push!(jl_expr.args, l)
 		nb_instr += 1
 
 		# If it is not a branch instruction, generate code for IP update
 		if !cpu.jit_eot
-			push!(jl_expr.args, :(@rip_add!(cpu, $(cpu.jit_ip_addend))))
-			cpu.jit_ip_addend = 0
+			#push!(jl_expr.args, :(@rip_add!(cpu, $(cpu.this_instr_len))))
+			push!(jl_expr.args, :(@rip_add!(cpu, $(cpu.this_instr_len))))
+			cpu.this_instr_len = 0
 		end
 
 		if cpu.jit_eot || cpu.single_stepping
+			# For type stablization
+			push!(jl_expr.args, :(return nothing))
 			break
 		end
 	end
-
+	println(jl_expr)
 	@eval f(cpu:: CPU, mem:: PhysicalMemory) = $jl_expr
 	return JITBlock(f, nb_instr)
 end
@@ -59,6 +63,7 @@ function emu_fetch8_advance(cpu:: CPU, mem:: PhysicalMemory)
 	if (cpu.address_size == 16)
 		b = ru8(cpu, mem, CS, UInt64(@ip(cpu)))
 		@ip_add!(cpu, 1)
+		cpu.this_instr_len += 1
 		return b
 	end
 	return 0
@@ -69,7 +74,7 @@ function jit_fetch8_advance(cpu:: CPU, mem:: PhysicalMemory)
 	if (cpu.address_size == 16)
 		b = ru8(cpu, mem, CS, cpu.jit_rip & 0xffff)
 		cpu.jit_rip = (cpu.jit_rip + 1) & 0xffff 
-		cpu.jit_ip_addend += 1
+		cpu.this_instr_len += 1
 		return b
 	end
 	return 0
@@ -80,6 +85,7 @@ function emu_fetch16_advance(cpu:: CPU, mem:: PhysicalMemory)
 	if (cpu.address_size == 16)
 		b = ru16(cpu, mem, CS, UInt64(@ip(cpu)))
 		@ip_add!(cpu, 2)
+		cpu.this_instr_len += 2
 		return b
 	end
 	return 0
@@ -90,7 +96,7 @@ function jit_fetch16_advance(cpu:: CPU, mem:: PhysicalMemory)
 	if (cpu.address_size == 16)
 		b = ru16(cpu, mem, CS, cpu.jit_rip & 0xffff)
 		cpu.jit_rip = (cpu.jit_rip + 2) & 0xffff 
-		cpu.jit_ip_addend += 2
+		cpu.this_instr_len += 2
 		return b
 	end
 	return 0

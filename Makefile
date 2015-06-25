@@ -21,5 +21,5 @@ test: FORCE
 	./julia test/PhysicalMemory_test.jl
 	./julia test/hw/EPROM_test.jl
 	./julia test/phys_ram_c_access.jl
-
+	./julia test/Instruction_test.jl
 FORCE:

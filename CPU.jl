@@ -123,9 +123,9 @@ type CPU
 
 	segment:: Int
 	single_stepping:: Bool
+	this_instr_len:: UInt8
 	jit_enabled:: Bool
 	jit_rip:: UInt64
-	jit_ip_addend:: UInt8
 	jit_eot:: Bool
 	jl_blocks:: Dict{UInt64, Dict{UInt64, JITBlock}}
 
@@ -162,7 +162,7 @@ type CPU
 		cpu.emu_insn_tbl = Dict{UInt32, Function}()
 		cpu.jit_insn_tbl = Dict{UInt32, Function}()
 
-		cpu.single_stepping = true
+		cpu.single_stepping = false
 		cpu.jit_enabled = true
 		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, JITBlock}}()
 
@@ -445,12 +445,12 @@ rfl_compute_handler[@ZB(OP_SBB)] = rflags_compute_sbb!
 rfl_compute_handler[@ZB(OP_SUB)] = rflags_compute_sub!
 rfl_compute_handler[@ZB(OP_CMP)] = rflags_compute_sub!
 
-function rflags_compute!(cpu:: CPU)
-	
+@noinline function rflags_compute!(cpu:: CPU)
 	# perform rflags computation only if the previous operation is recognizable
 	if cpu.lazyf_op < OP_NB
 		rfl_compute_handler[@ZB(cpu.lazyf_op)](cpu, rfl_compute_dt[cpu.lazyf_width])
 	end
+	return nothing
 end
 
 # MMU functions
@@ -737,6 +737,7 @@ end
 	else
 		cpu.port_iomap_w32[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr, data)
 	end
+	return nothing
 end
 
 @noinline function port_io_w16(cpu:: CPU, addr:: UInt64, data:: UInt16)
@@ -747,14 +748,16 @@ end
 	else
 		cpu.port_iomap_w16[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr, data)
 	end
+	return nothing
 end
 
 @noinline function port_io_w8(cpu:: CPU, addr:: UInt64, data:: UInt8)
 	if cpu.port_iomap_w8[@ZB(addr)] == false
 		println("w8 : Unregistered I/O port 0x$(hex(addr))")
-		return
+		return nothing
 	end
 	cpu.port_iomap_w8[@ZB(addr)](cpu.port_iomap_dev[@ZB(addr)], addr, data)
+	return nothing
 end
 
 # Execution engine
@@ -764,9 +767,6 @@ require("Instructions.jl")
 # CPU functions
 function exec(cpu:: CPU, mem:: PhysicalMemory)
 	println("----- Start -----")
-	println(hex(@sreg(cpu, CS)))
-	println(hex(@sreg_base(cpu, CS)))
-	println(hex(@eip(cpu)))
 	
 	dump(cpu)
 	cpu.segment = -1;
@@ -816,7 +816,9 @@ end
 
 function dump(cpu:: CPU)
 	# The x64-only CPU info. is not shown
-	@printf( "RAX=%016x  RBX=%016x	RCX=%016x  RDX=%016x\nRSI=%016x  RDI=%016x	RBP=%016x  RSP=%016x\nRIP=%016x  RFL=%016x [%c%c%c%c%c%c%c]\n",
+	@printf( "CS:RIP=%016x:%016x\nRAX=%016x  RBX=%016x	RCX=%016x  RDX=%016x\nRSI=%016x  RDI=%016x	RBP=%016x  RSP=%016x\nRIP=%016x RFL=%016x [%c%c%c%c%c%c%c]\n",
+			  @sreg_base(cpu, CS),
+			  @rip(cpu),
 			  @reg_r_named(cpu, RAX),
 			  @reg_r_named(cpu, RBX),
 			  @reg_r_named(cpu, RCX),

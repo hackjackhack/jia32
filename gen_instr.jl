@@ -1,9 +1,12 @@
 #= Template rules:
 	1. Text "fetch" is preserved. Don't use it except in fetch??_advance
-	2. Lines starting with j= will be written into Expr.
+	2. Lines starting with j= are
+		 copied into emu_0x??
+		 transformed to Expr and used by jit_0x?? to generate JIT code
 	3. $$ in lines starting with j= will be removed in emulaion code and
 	   replaced with $ in JIT code.
-	4. Lines starting with jo= will appear only in JIT code.
+	4. Lines starting with jo= will appear only in jit_0x?? functions.
+	         (They are not injected to JIT block)
 	5. Normal lines appear exactly the same on both sides.
 	6. emu_ and jit_ will be added before any fetch
 	7. inc= XXXX will include the content in XXXX.t
@@ -31,7 +34,20 @@ function translate_template(lines)
 			emu_str *= "	" * replace(l[3:end], "\$\$", "")
 			n_tab = count(x -> x == '\t', l)
 			l = replace(l, "\$\$", "\$")
-			jit_str *= "	" ^ (n_tab + 1) * "push!(jl_expr.args, :($(l[3:end - 1])))\n" 
+			l = strip(l[3:end - 1])
+
+			if startswith(l, "if") && !endswith(l, "end")
+				l *= " end"
+				jit_str *= "	" ^ (n_tab + 1) * "push!(jl_exprs[end].args, :($(l)))\n" 
+				jit_str *= "    " ^ (n_tab + 1) * "push!(jl_exprs, quote end)\n"
+				jit_str *= "    " ^ (n_tab + 1) * "push!(insert_poses, 2)\n"
+			elseif startswith(l, "end")
+				jit_str *= "    " ^ (n_tab + 1) * "body = pop!(jl_exprs)\n"
+				jit_str *= "    " ^ (n_tab + 1) * "insert_pos = pop!(insert_poses)\n"
+				jit_str *= "	" ^ (n_tab + 1) * "insert!(jl_exprs[end].args[end].args, insert_pos, body)\n" 
+			else
+				jit_str *= "	" ^ (n_tab + 1) * "push!(jl_exprs[end].args, :($(l)))\n" 
+			end
 		elseif startswith(l, "jo=")
 			jit_str *= "	" * l[4:end]
 		elseif startswith(l, "sub=")
@@ -63,15 +79,17 @@ end
 
 function generate_emu_jit_code(opcode, lines)
 	emu_str = "function emu_$opcode(cpu:: CPU, mem:: PhysicalMemory, opc:: UInt16)\n"
-	jit_str = "function jit_$opcode(cpu:: CPU, mem:: PhysicalMemory, opc:: UInt16)\n"
-	jit_str *= "	jl_expr = quote end\n"
+	jit_str = "function jit_$opcode(cpu:: CPU, mem:: PhysicalMemory, opc:: UInt16, expr:: Expr)\n"
+	jit_str *= "	jl_exprs = []\n    push!(jl_exprs, expr)\n"
+	jit_str *= "    insert_poses = []\n    push!(insert_poses, 1)\n"
 
 	translated_code = translate_template(lines)
 	emu_str *= translated_code[1]
 	jit_str *= translated_code[2]
 
 	emu_str *= "end\n"
-	jit_str *= "	return jl_expr\nend\n"
+	#jit_str *= "	return jl_exprs[end]\nend\n"
+	jit_str *= "end\n"
 
 	return [emu_str, jit_str]
 end
