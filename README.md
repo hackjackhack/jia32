@@ -9,13 +9,18 @@ Compilation:
   execution.
 
 Usage:
+```
   julia main.jl
-
+```
 Test:
       To run all tests, please execute
+      ```
           make test
+      ```
       Or, you can run a single test by executing
+      ```
           julia test/???_test.jl
+      ```
 
 travis-ci:
 https://travis-ci.org/hackjackhack/jia32.svg?branch=master
