@@ -17,4 +17,5 @@ Test:
       Or, you can run a single test by executing
           julia test/???_test.jl
 
-travis-ci: https://travis-ci.org/hackjackhack/jia32.svg?branch=master
+travis-ci:
+https://travis-ci.org/hackjackhack/jia32.svg?branch=master
