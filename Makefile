@@ -1,5 +1,5 @@
 all:
-	./julia gen_instr.jl
+	julia gen_instr.jl
 	make -C hw/hw_qemu
 	make -C deps/
 
@@ -17,9 +17,9 @@ superclean:
 	make -C deps/ superclean
 
 test: FORCE
-	./julia test/CPU_test.jl
-	./julia test/PhysicalMemory_test.jl
-	./julia test/hw/EPROM_test.jl
-	./julia test/phys_ram_c_access.jl
-	./julia test/Instruction_test.jl
+	julia test/CPU_test.jl
+	julia test/PhysicalMemory_test.jl
+	julia test/hw/EPROM_test.jl
+	julia test/phys_ram_c_access.jl
+	julia test/Instruction_test.jl
 FORCE:
