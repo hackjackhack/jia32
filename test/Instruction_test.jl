@@ -34,6 +34,21 @@ macro BL() :(@reg_r_named(cpu, BL)) end
 macro BX() :(@reg_r_named(cpu, BX)) end
 macro EBX() :(@reg_r_named(cpu, EBX)) end
 macro RBX() :(@reg_r_named(cpu, RBX)) end
+macro SP() :(@reg_r_named(cpu, SP)) end
+macro ESP() :(@reg_r_named(cpu, ESP)) end
+macro RSP() :(@reg_r_named(cpu, RSP)) end
+macro BP() :(@reg_r_named(cpu, BP)) end
+macro EBP() :(@reg_r_named(cpu, EBP)) end
+macro RBP() :(@reg_r_named(cpu, RBP)) end
+macro SI() :(@reg_r_named(cpu, SI)) end
+macro ESI() :(@reg_r_named(cpu, ESI)) end
+macro RSI() :(@reg_r_named(cpu, RSI)) end
+macro DI() :(@reg_r_named(cpu, DI)) end
+macro EDI() :(@reg_r_named(cpu, EDI)) end
+macro RDI() :(@reg_r_named(cpu, RDI)) end
+macro IP() :(@reg_r_named(cpu, IP)) end
+macro EIP() :(@reg_r_named(cpu, EIP)) end
+macro RIP() :(@reg_r_named(cpu, RIP)) end
 
 function main()
 	# Create a global clock
@@ -70,6 +85,16 @@ function main()
 	# Test case starts here
 	@T16("xor ax, bx", :(a = @AX() $ @BX()), :(a == @AX()))
 	@T16("add ax, cx", :(a = (UInt32(@AX()) + UInt32(@CX())) % UInt16), :(a == @AX()))
+
+	@T16("xor ax, ax", quote end, quote true end) 
+	@T16("xor bx, bx", quote end, quote true end) 
+	@T16("cmp ax, bx", quote end, quote true end) 
+	@T16("jz .+20", :(old_ip = @IP()), :(@IP() == (old_ip + 20) % UInt16))
+
+	@T16(".byte 0x05,0x12,0x34", quote end, quote true end)  # add AX, IZ
+	@T16("cmp ax, bx", quote end, quote true end) 
+	@T16("je .+20", :(old_ip = @IP()), :(@IP() == (old_ip + 2) % UInt16 ))
+
 	println("OK")
 end
 

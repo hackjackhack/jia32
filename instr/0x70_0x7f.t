@@ -43,5 +43,7 @@ if cpu.operand_size == 16
 j=		temp_ip &= 0xffff 
 end
 j=		@rip!(cpu, temp_ip)
+j=	else
+j=		@rip_add!(cpu, $$(cpu.this_instr_len))
 j=	end
 jo=	cpu.jit_eot = true

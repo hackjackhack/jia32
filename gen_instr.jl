@@ -38,13 +38,21 @@ function translate_template(lines)
 
 			if startswith(l, "if") && !endswith(l, "end")
 				l *= " end"
-				jit_str *= "	" ^ (n_tab + 1) * "push!(jl_exprs[end].args, :($(l)))\n" 
+				jit_str *= "	" ^ (n_tab + 1) * "push!(jl_exprs[end].args, :($(l)))\n"
+				jit_str *= "    " ^ (n_tab + 1) * "push!(jl_exprs[end].args[end].args, quote end)\n" # else body
 				jit_str *= "    " ^ (n_tab + 1) * "push!(jl_exprs, quote end)\n"
 				jit_str *= "    " ^ (n_tab + 1) * "push!(insert_poses, 2)\n"
+			elseif startswith(l, "else")
+				jit_str *= "    " ^ (n_tab + 1) * "body = pop!(jl_exprs)\n"
+				jit_str *= "    " ^ (n_tab + 1) * "insert_pos = pop!(insert_poses)\n"
+				jit_str *= "	" ^ (n_tab + 1) * "jl_exprs[end].args[end].args[insert_pos] = body\n" 
+
+				jit_str *= "    " ^ (n_tab + 1) * "push!(jl_exprs, quote end)\n"
+				jit_str *= "    " ^ (n_tab + 1) * "push!(insert_poses, 3)\n"
 			elseif startswith(l, "end")
 				jit_str *= "    " ^ (n_tab + 1) * "body = pop!(jl_exprs)\n"
 				jit_str *= "    " ^ (n_tab + 1) * "insert_pos = pop!(insert_poses)\n"
-				jit_str *= "	" ^ (n_tab + 1) * "insert!(jl_exprs[end].args[end].args, insert_pos, body)\n" 
+				jit_str *= "	" ^ (n_tab + 1) * "jl_exprs[end].args[end].args[insert_pos] = body\n" 
 			else
 				jit_str *= "	" ^ (n_tab + 1) * "push!(jl_exprs[end].args, :($(l)))\n" 
 			end

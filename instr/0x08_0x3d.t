@@ -38,7 +38,7 @@ j=			b += (cpu.rflags & CPU_CF)
 j=		a = UInt64(@reg_r(cpu, $$ot, 0))
 		if op_type != OP_CMP
 j=			r = $$op_func(a, b)
-j=			@reg_w!(cpu, $$ot, 0, r)
+j=			@reg_w!(cpu, $$ot, 0, r % $$ot)
 		end
 	else
 call= modrm modrm,mod,rm,reg,disp,is_reg,ev_reg,t_addr,seg
@@ -68,7 +68,7 @@ j=				b += (cpu.rflags & CPU_CF)
 			
 			if op_type != OP_CMP
 j=				r = $$op_func(a, b)
-j=				@reg_w!(cpu, $$ot, $$r_dst, r)
+j=				@reg_w!(cpu, $$ot, $$r_dst, r % $$ot)
 			end
 
 		else
@@ -107,7 +107,7 @@ j=						rflags_compute!(cpu)
 j=						b += (cpu.rflags & CPU_CF)
 					end
 j=					r = $$op_func(a, b)
-j=					@reg_w!(cpu, $$ot, $$reg, r)
+j=					@reg_w!(cpu, $$ot, $$reg, r % $$ot)
 				end
 			end
 		end
