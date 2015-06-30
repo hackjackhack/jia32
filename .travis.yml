@@ -1,0 +1,6 @@
+language: julia
+julia:
+  - nightly
+script:
+  - make
+  - make test

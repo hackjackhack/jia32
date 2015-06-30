@@ -38,12 +38,12 @@ else
 end
 
 j=	if jmp
-j=		temp_ip = @rip(cpu) + $$rel + $$(cpu.this_instr_len)
+j=		temp_ip = @rip(cpu) + $$rel + $$(cpu.ip_addend)
 if cpu.operand_size == 16
 j=		temp_ip &= 0xffff 
 end
 j=		@rip!(cpu, temp_ip)
 j=	else
-j=		@rip_add!(cpu, $$(cpu.this_instr_len))
+j=		@rip_add!(cpu, $$(cpu.ip_addend))
 j=	end
 jo=	cpu.jit_eot = true

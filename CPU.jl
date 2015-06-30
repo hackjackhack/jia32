@@ -124,6 +124,7 @@ type CPU
 	segment:: Int
 	single_stepping:: Bool
 	this_instr_len:: UInt8
+	ip_addend:: UInt8
 	jit_enabled:: Bool
 	jit_rip:: UInt64
 	jit_eot:: Bool
@@ -162,7 +163,7 @@ type CPU
 		cpu.emu_insn_tbl = Dict{UInt32, Function}()
 		cpu.jit_insn_tbl = Dict{UInt32, Function}()
 
-		cpu.single_stepping = false
+		cpu.single_stepping = true
 		cpu.jit_enabled = true
 		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, JITBlock}}()
 
@@ -779,6 +780,8 @@ function exec(cpu:: CPU, mem:: PhysicalMemory)
 
 		rflags_compute!(cpu)
 	else
+		cpu.this_instr_len = 0
+		cpu.ip_addend = 0
 		b = emu_fetch8_advance(cpu, mem)
 		println(hex(b))
 		cpu.emu_insn_tbl[b](cpu, mem, UInt16(b))
