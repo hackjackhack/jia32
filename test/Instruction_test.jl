@@ -95,6 +95,9 @@ function main()
 	@T16("cmp ax, bx", quote end, quote true end) 
 	@T16("je .+20", :(old_ip = @IP()), :(@IP() == (old_ip + 2) % UInt16 ))
 
+	@T16(".byte 0xb8,0xfe,0xff", quote end, quote true end)  # mov AX, 0xfffe
+	@T16("mov ss, ax", quote end, quote @sreg_base(cpu, SS) == UInt64(0xfffe0) end)
+
 	println("OK")
 end
 

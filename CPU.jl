@@ -41,10 +41,11 @@ const RIP_type = UInt64; const RIP_seq = 16;
 const EIP_type = UInt32; const EIP_seq = 16;
 const IP_type = UInt16; const IP_seq = 16;
 
-const CS = 0
-const DS = 1
-const ES = 2
-const SS = 3
+# Vol. 2C, B.1.4.5, Table B-8
+const ES = 0
+const CS = 1
+const SS = 2
+const DS = 3
 const FS = 4
 const GS = 5
 
@@ -82,6 +83,19 @@ const CPU_VIF  = UInt64(0b1)  << 19
 const CPU_VIP  = UInt64(0b1)  << 20
 const CPU_ID   = UInt64(0b1)  << 21
 
+#	CR0 Flag
+const CR0_PE   = UInt64(0b1)
+const CR0_MP   = UInt64(0b1)  << 1
+const CR0_EM   = UInt64(0b1)  << 2
+const CR0_TS   = UInt64(0b1)  << 3
+const CR0_ET   = UInt64(0b1)  << 4
+const CR0_NE   = UInt64(0b1)  << 5
+const CR0_WP   = UInt64(0b1)  << 16
+const CR0_AM   = UInt64(0b1)  << 18
+const CR0_NW   = UInt64(0b1)  << 29
+const CR0_CD   = UInt64(0b1)  << 30
+const CR0_PG   = UInt64(0b1)  << 31
+
 IOFunc = Union(Bool, Function)
 
 type JITBlock
@@ -101,6 +115,12 @@ type CPU
 	seg_regs_buffer:: Array{UInt16}
 	seg_regs:: Ptr{UInt16}
 	rflags:: UInt64
+	cr0:: UInt64
+	cr1:: UInt64
+	cr2:: UInt64
+	cr3:: UInt64
+	cr4:: UInt64
+	cr8:: UInt64
 
 	# Internal use
 	seg_regs_base_buffer:: Array{UInt64}
@@ -163,7 +183,7 @@ type CPU
 		cpu.emu_insn_tbl = Dict{UInt32, Function}()
 		cpu.jit_insn_tbl = Dict{UInt32, Function}()
 
-		cpu.single_stepping = true
+		cpu.single_stepping = false
 		cpu.jit_enabled = true
 		cpu.jl_blocks = Dict{UInt64, Dict{UInt64, JITBlock}}()
 
@@ -815,6 +835,21 @@ function reset(cpu:: CPU)
 
 	# Volume 3, Chapter 9.1.2, Table 9-1
 	cpu.rflags = UInt64(0x02)
+	cpu.cr0 = UInt64(0x60000010)
+	cpu.cr2 = 0
+	cpu.cr3 = 0
+	cpu.cr4 = 0
+	@sreg!(cpu, FS, 0)
+	@sreg_base!(cpu, ES, 0x0)
+	@sreg!(cpu, GS, 0)
+	@sreg_base!(cpu, SS, 0x0)
+	@reg_w_named!(cpu, EAX, 0)
+	@reg_w_named!(cpu, ECX, 0)
+	@reg_w_named!(cpu, EBX, 0)
+	@reg_w_named!(cpu, ESP, 0)
+	@reg_w_named!(cpu, EBP, 0)
+	@reg_w_named!(cpu, ESI, 0)
+	@reg_w_named!(cpu, EDI, 0)
 end
 
 function dump(cpu:: CPU)

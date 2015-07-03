@@ -18,7 +18,7 @@ if cpu.address_size == 16
 				disp = fetch16_advance(cpu, mem)
 				
 				# Avoid SS override. See note 1 below Table 2-1
-				rm = 0
+				rm = -1
 			end	
 		elseif mod == 0b01
 			disp = fetch8_advance(cpu, mem)
@@ -43,8 +43,10 @@ j=			t_addr = @reg_r_named(cpu, SI)
 j=			t_addr = @reg_r_named(cpu, DI)
 		elseif rm == 6
 j=			t_addr = @reg_r_named(cpu, BP)
-		else	# rm == 7
+		elseif rm == 7
 j=			t_addr = @reg_r_named(cpu, BX)
+		else
+j=			t_addr = 0
 		end
 
 		# Add displacement
